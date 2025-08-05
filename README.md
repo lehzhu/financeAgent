@@ -1,6 +1,12 @@
 # FinanceQA Agent
 
-This is a Python-based agent for the FinanceQA benchmark, running on Modal with OpenAI's GPT-4o. It tackles financial analysis questions (tactical and conceptual). Current performance is at 11% with base GPT-4o.
+## Performance
+
+- **Accuracy: 46.7%** (with smart matching)
+- **Baseline to beat: 56.8%** (from original paper)
+- **Detailed results**: See [evaluation_results.md](evaluation_results.md) for a full breakdown
+
+This is a Python-based agent for the FinanceQA benchmark, running on Modal with OpenAI's GPT-4o. It tackles financial analysis questions (tactical and conceptual) to achieve >60% accuracy.
 
 ## Setup
 
@@ -57,12 +63,12 @@ Outputs accuracy on the FinanceQA test set.
 modal run agent.py --question "Calculate NOPAT for 2024." --context "The company's EBIT for 2024 is $1,000, and the effective tax rate is 30%."
 ```
 
-## How It Meets the PRD
+## Current Results
 
-- **Accuracy**: Currently at 11% with base GPT-4o. The goal is to surpass the 56.8% baseline, especially on assumption-based questions.
-- **Handles All Questions**: Processes tactical (context-based) and conceptual (reasoning-based) questions for any company.
-- **Fast Development**: Built in <4 hours, deployable on Modal.
-- **Submission-Ready**: Includes agent.py, evaluate.py, requirements.txt, and this README.
+- **Accuracy**: 46.7% with smart matching (approaching the 56.8% baseline)
+- **Handles All Questions**: Successfully processes both tactical (context-based) and conceptual (reasoning-based) questions
+- **Fast Response**: ~15 seconds per question on average
+- **Production Ready**: Deployed on Modal with automatic rate limiting and error handling
 
 ## Future Extensions
 
@@ -92,14 +98,22 @@ modal run agent.py --question "Calculate NOPAT" --context "EBIT=$1000, tax=30%"
 
 ## Files
 
+### Core Files
 - `agent.py`: Main agent with GPT-4o integration
-- `evaluate.py`: Evaluation script for FinanceQA dataset
-- `test_agent.py`: Test version without API calls
-- `test_evaluate.py`: Quick evaluation test (3 samples)
 - `requirements.txt`: Python dependencies
-- `.env`: API keys (create from .env.example)
+- `evaluation_results.md`: Latest performance metrics and analysis
+
+### Evaluation Scripts
+- `evaluate.py`: Full evaluation (148 questions, ~30 min)
+- `evaluate_improved.py`: Evaluation with smart matching and transparency
+- `quick_evaluate.py`: Quick evaluation (20 questions, ~10 min)
+- `test_evaluate.py`: Minimal test (3 questions)
+
+### Utilities
+- `.env`: API keys (create from template)
 - `load_env.sh`: Environment loader script
 - `sync-to-github.sh`: Auto-sync to GitHub
+- `activate.sh`: Virtual environment activation
 
 ## Troubleshooting
 
