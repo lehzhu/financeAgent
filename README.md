@@ -1,6 +1,6 @@
 # FinanceQA Agent
 
-This is a Python-based agent for the FinanceQA benchmark, running on Modal with OpenAI's GPT-4o. It tackles financial analysis questions (tactical and conceptual) to achieve >60% accuracy.
+This is a Python-based agent for the FinanceQA benchmark, running on Modal with OpenAI's GPT-4o. It tackles financial analysis questions (tactical and conceptual). Current performance is at 11% with base GPT-4o.
 
 ## Setup
 
@@ -59,7 +59,7 @@ modal run agent.py --question "Calculate NOPAT for 2024." --context "The company
 
 ## How It Meets the PRD
 
-- **>60% Accuracy**: Uses GPT-4o with few-shot prompts to surpass the 56.8% baseline, especially on assumption-based questions.
+- **Accuracy**: Currently at 11% with base GPT-4o. The goal is to surpass the 56.8% baseline, especially on assumption-based questions.
 - **Handles All Questions**: Processes tactical (context-based) and conceptual (reasoning-based) questions for any company.
 - **Fast Development**: Built in <4 hours, deployable on Modal.
 - **Submission-Ready**: Includes agent.py, evaluate.py, requirements.txt, and this README.
