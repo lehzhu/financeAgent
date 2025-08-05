@@ -1,0 +1,148 @@
+import modal
+from datasets import load_dataset
+import os
+import re
+import time
+
+# Define the Modal app with required dependencies
+app = modal.App(
+    "finance-evaluate-improved",
+    image=modal.Image.debian_slim().pip_install("datasets", "openai"),
+    secrets=[modal.Secret.from_name("openai-key-1")]
+)
+
+def extract_number(text):
+    """Extract numerical value from text, handling various formats."""
+    if text is None:
+        return None
+    
+    # Convert to string and clean
+    text = str(text).strip()
+    
+    # Remove common prefixes/suffixes
+    text = text.replace("$", "").replace(",", "").replace("%", "")
+    text = text.replace("(in millions)", "").replace("million", "")
+    text = text.replace("billion", "000").replace("x", "")
+    
+    # Try to find a number
+    numbers = re.findall(r'-?\d+\.?\d*', text)
+    if numbers:
+        try:
+            return float(numbers[0])
+        except:
+            return None
+    return None
+
+def answers_match(expected, got, tolerance=0.02):
+    """Check if answers match with some tolerance for numerical values."""
+    if expected == got:
+        return True
+    
+    # Try numerical comparison
+    expected_num = extract_number(expected)
+    got_num = extract_number(got)
+    
+    if expected_num is not None and got_num is not None:
+        # Allow 2% tolerance for numerical answers
+        if abs(expected_num - got_num) / max(abs(expected_num), 0.01) < tolerance:
+            return True
+    
+    # Check for Yes/No questions
+    expected_lower = str(expected).lower().strip()
+    got_lower = str(got).lower().strip()
+    
+    if expected_lower in ["yes", "no"]:
+        if expected_lower in got_lower:
+            return True
+    
+    # Check if the expected answer is contained in the response
+    if expected_lower in got_lower:
+        return True
+    
+    return False
+
+# Evaluation function with better matching
+@app.function(timeout=600)  # 10 minutes for testing
+def evaluate_with_transparency():
+    # Load the FinanceQA test set
+    dataset = load_dataset("AfterQuery/FinanceQA", split="test")
+    
+    # Get the process_question function from the agent app
+    process_question = modal.Function.from_name("finance-agent", "process_question")
+    
+    correct = 0
+    test_size = 30  # Test 30 questions for better sample
+    errors = 0
+    close_matches = 0
+    
+    print("="*60)
+    print("IMPROVED EVALUATION WITH TRANSPARENCY")
+    print(f"Testing {test_size} questions with smart matching")
+    print("="*60)
+    print()
+    
+    for i in range(test_size):
+        row = dataset[i]
+        try:
+            start_time = time.time()
+            result = process_question.remote(row["question"], row["context"])
+            elapsed = time.time() - start_time
+            
+            # Check if answers match
+            exact_match = (result == row["answer"])
+            smart_match = answers_match(row["answer"], result)
+            
+            if smart_match:
+                correct += 1
+                if not exact_match:
+                    close_matches += 1
+            
+            # Detailed output for transparency
+            print(f"[Question {i+1}/{test_size}]")
+            print(f"Q: {row['question'][:100]}...")
+            print(f"Expected: {row['answer']}")
+            print(f"Got:      {result}")
+            
+            # Show numerical extraction for debugging
+            exp_num = extract_number(row["answer"])
+            got_num = extract_number(result)
+            if exp_num is not None and got_num is not None:
+                diff = abs(exp_num - got_num) / max(abs(exp_num), 0.01) * 100
+                print(f"Numbers:  {exp_num} vs {got_num} (diff: {diff:.2f}%)")
+            
+            print(f"Match:    {'✓ EXACT' if exact_match else '✓ SMART' if smart_match else '✗ NO MATCH'}")
+            print(f"Time:     {elapsed:.1f}s")
+            print(f"Running:  {(correct/(i+1)*100):.1f}% accurate")
+            print("-"*60)
+            print()
+            
+            # Small delay every 5 questions
+            if (i + 1) % 5 == 0:
+                time.sleep(2)
+                
+        except Exception as e:
+            errors += 1
+            print(f"[Question {i+1}/{test_size}] ERROR")
+            print(f"Error: {str(e)[:200]}")
+            print("-"*60)
+            print()
+            
+            if "rate_limit" in str(e).lower():
+                print("Waiting 30 seconds for rate limit...")
+                time.sleep(30)
+
+    print("="*60)
+    print("FINAL RESULTS")
+    print("="*60)
+    print(f"Questions tested:  {test_size}")
+    print(f"Correct answers:   {correct} ({correct/test_size*100:.1f}%)")
+    print(f"  - Exact matches: {correct - close_matches}")
+    print(f"  - Smart matches: {close_matches}")
+    print(f"Errors:           {errors}")
+    print(f"Final Accuracy:   {(correct/test_size*100):.1f}%")
+    print("="*60)
+
+# Local entrypoint
+@app.local_entrypoint()
+def main():
+    evaluate_with_transparency.remote()

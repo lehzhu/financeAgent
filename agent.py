@@ -58,7 +58,10 @@ Context: {context}
 
 Question: {question}
 
-Remember to state your final answer in the format: 'Final Answer: [answer]'"""
+Important: State ONLY the numerical value or Yes/No as your final answer in the format: 'Final Answer: [answer]'
+Do not include units like '(in millions)' or '$' in your final answer - just the number.
+For percentages, include the % sign.
+For ratios, include the 'x' suffix."""
     chat_completion = client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
         model="gpt-4o"
