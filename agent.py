@@ -89,7 +89,7 @@ def extract_final_answer(response):
     return None
 
 # Main function to process questions
-@app.function()
+@app.function(timeout=60)  # 60 second timeout per question
 def process_question(question, context=None):
     if context:
         response = answer_tactical(context, question)

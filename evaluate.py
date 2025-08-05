@@ -11,8 +11,8 @@ app = modal.App(
     secrets=[modal.Secret.from_name("hf-token")] if "HF_TOKEN" in os.environ else []
 )
 
-# Evaluation function
-@app.function(timeout=600)
+# Evaluation function with extended timeout for 148 questions
+@app.function(timeout=1800)  # 30 minutes for full evaluation
 def evaluate_agent():
     # Load the FinanceQA test set (public dataset, no login required)
     dataset = load_dataset("AfterQuery/FinanceQA", split="test")
@@ -22,26 +22,51 @@ def evaluate_agent():
 
     correct = 0
     total = len(dataset)
+    errors = 0
+    
+    print(f"Starting evaluation of {total} questions...")
+    print(f"Estimated time: ~{total * 2 / 60:.1f} minutes (with rate limiting)")
+    
     for i, row in enumerate(dataset):
         try:
+            start_time = time.time()
             result = process_question.remote(row["question"], row["context"])
+            elapsed = time.time() - start_time
+            
             if result == row["answer"]:
                 correct += 1
-            print(f"Processed {i+1}/{total} | Accuracy: {((correct / (i+1)) * 100):.2f}% | Current: {result == row['answer']}")
+            
+            print(f"[{i+1}/{total}] Accuracy: {((correct / (i+1)) * 100):.2f}% | Match: {result == row['answer']} | Time: {elapsed:.1f}s")
+            
+            # Add small delay to avoid rate limits
+            if (i + 1) % 10 == 0:
+                print(f"  -> Progress: {((i+1)/total*100):.1f}% complete, {correct}/{i+1} correct")
+                time.sleep(2)  # Small pause every 10 questions
+                
         except Exception as e:
-            print(f"Error on row {i+1}: {e}")
-            print("Pausing for 60 seconds due to rate limit...")
-            time.sleep(60) # Wait for a minute before retrying
-            try:
-                result = process_question.remote(row["question"], row["context"])
-                if result == row["answer"]:
-                    correct += 1
-                print(f"Processed {i+1}/{total} after retry | Accuracy: {((correct / (i+1)) * 100):.2f}% | Current: {result == row['answer']}")
-            except Exception as e2:
-                print(f"Error on row {i+1} after retry: {e2}")
+            errors += 1
+            print(f"[{i+1}/{total}] Error: {str(e)[:100]}")
+            
+            if "rate_limit" in str(e).lower():
+                print("  -> Rate limit hit, waiting 60 seconds...")
+                time.sleep(60)
+                # Retry once
+                try:
+                    result = process_question.remote(row["question"], row["context"])
+                    if result == row["answer"]:
+                        correct += 1
+                    print(f"  -> Retry successful: {result == row['answer']}")
+                except Exception as e2:
+                    print(f"  -> Retry failed: {str(e2)[:100]}")
 
     accuracy = (correct / total) * 100
-    print(f"Final Accuracy: {accuracy:.2f}%")
+    print("\n" + "="*50)
+    print(f"FINAL RESULTS:")
+    print(f"  Total Questions: {total}")
+    print(f"  Correct Answers: {correct}")
+    print(f"  Errors: {errors}")
+    print(f"  Final Accuracy: {accuracy:.2f}%")
+    print("="*50)
 
 # Local entrypoint to trigger evaluation
 @app.local_entrypoint()
