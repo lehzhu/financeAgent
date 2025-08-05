@@ -1,15 +1,15 @@
 import modal
-import os
 from openai import OpenAI
+import os
 
-# Define the Modal app with the OpenAI dependency
+# Define the Modal app with required dependencies
 app = modal.App(
     "finance-agent",
     image=modal.Image.debian_slim().pip_install("openai"),
-    secrets=[modal.Secret.from_name("openai-key-1")]  # Link the secret
+    secrets=[modal.Secret.from_name("openai-key-1")]
 )
 
-# Examples for tactical questions to guide the LLM
+# Examples for tactical questions (with context)
 EXAMPLES_TACTICAL = """
 Example 1:
 Context: The company's EBIT for 2024 is $1,000, and the effective tax rate is 30%.
@@ -30,7 +30,7 @@ Therefore, variable lease assets = ratio * total lease assets = 0.1 * 5000 = 500
 Final Answer: 500
 """
 
-# Examples for conceptual questions to guide the LLM
+# Examples for conceptual questions (no context)
 EXAMPLES_CONCEPTUAL = """
 Example 1:
 Question: If a company has a 2x sales multiple and a 5x EBITDA multiple, what is its EBITDA margin?
@@ -43,10 +43,11 @@ The EBITDA margin is E / S = (2/5) = 0.4 or 40%.
 Final Answer: 40%
 """
 
+# Initialize OpenAI client with API key from Modal secret
+client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
 # Function to handle tactical questions with context
-@app.function(secrets=[modal.Secret.from_name("openai-key-1")])
 def answer_tactical(context, question):
-    client = OpenAI()  # Automatically uses OPENAI_API_KEY from the secret
     prompt = f"""Here are some examples of how to answer similar questions:
 
 {EXAMPLES_TACTICAL}
@@ -60,14 +61,12 @@ Question: {question}
 Remember to state your final answer in the format: 'Final Answer: [answer]'"""
     chat_completion = client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
-        model="gpt-4o"  # Corrected to use gpt-4o (not gpt-4.1)
+        model="gpt-4o"
     )
     return chat_completion.choices[0].message.content
 
 # Function to handle conceptual questions without context
-@app.function(secrets=[modal.Secret.from_name("openai-key-1")])
 def answer_conceptual(question):
-    client = OpenAI()  # Automatically uses OPENAI_API_KEY from the secret
     prompt = f"""Here are some examples of how to answer similar questions:
 
 {EXAMPLES_CONCEPTUAL}
@@ -77,33 +76,33 @@ Now, think step by step to answer the following question. Provide your reasoning
 Question: {question}"""
     chat_completion = client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
-        model="gpt-4o"  # Corrected to use gpt-4o
+        model="gpt-4o"
     )
     return chat_completion.choices[0].message.content
 
 # Function to extract the final answer from the LLM response
 def extract_final_answer(response):
     lines = response.split("\n")
-    for line in lines:
+    for line in reversed(lines):
         if line.startswith("Final Answer:"):
             return line.split(":", 1)[1].strip()
     return None
 
 # Main function to process questions
-@app.function(secrets=[modal.Secret.from_name("openai-key-1")])
-def process_question(question, context):
+@app.function()
+def process_question(question, context=None):
     if context:
-        response = answer_tactical.remote(context, question)  # Call remotely
+        response = answer_tactical(context, question)
     else:
-        response = answer_conceptual.remote(question)  # Call remotely
+        response = answer_conceptual(question)
     final_answer = extract_final_answer(response)
-    return final_answer if final_answer else "Could not determine the answer."
+    return final_answer
 
-# Local entrypoint for testing
+# Local entrypoint for testing individual questions
 @app.local_entrypoint()
 def main(
     question: str = "Calculate NOPAT for 2024.",
-    context: str = "The company's EBIT for 2024 is $1,000, and the effective tax rate is 30%."
+    context: str = "The company's EBIT for 2024 is $1,000, and the effective tax rate is 30%.",
 ):
     result = process_question.remote(question, context)
     print(result)
