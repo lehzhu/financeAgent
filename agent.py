@@ -58,10 +58,14 @@ Context: {context}
 
 Question: {question}
 
-Important: State ONLY the numerical value or Yes/No as your final answer in the format: 'Final Answer: [answer]'
-Do not include units like '(in millions)' or '$' in your final answer - just the number.
-For percentages, include the % sign.
-For ratios, include the 'x' suffix."""
+CRITICAL INSTRUCTIONS FOR FINAL ANSWER:
+1. Always provide a Final Answer, even if you need to make reasonable assumptions
+2. For dollar amounts in millions: just write the number (e.g., 11522 not $11,522 million)
+3. For percentages: include % (e.g., 4.53%)
+4. For ratios/multiples: include x (e.g., 56.66x)
+5. For Yes/No questions: answer "Yes" or "No"
+6. Never return None or leave Final Answer blank
+7. Format: 'Final Answer: [value]'"""
     chat_completion = client.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
         model="gpt-4o"
