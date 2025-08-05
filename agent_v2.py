@@ -9,9 +9,15 @@ import re
 # Define the Modal app with the new agentic architecture
 app = modal.App(
     "finance-agent-v2",
-    image=modal.Image.debian_slim().pip_install("langchain", "faiss-cpu", "openai", "tiktoken"),
+    image=modal.Image.debian_slim().pip_install(
+        "langchain", "langchain-community", "langchain-openai",
+        "faiss-cpu", "openai", "tiktoken"
+    ),
     secrets=[modal.Secret.from_name("openai-key-1")]
 )
+
+# Create a volume for persistent storage
+volume = modal.Volume.from_name("finance-agent-storage", create_if_missing=True)
 
 # --- Knowledge Base & Tools ---
 
@@ -21,7 +27,7 @@ def build_knowledge_base():
     print("Building knowledge base from costco_10k.txt...")
     
     # Load the document
-    with open("costco_10k.txt", "r") as f:
+    with open("data/costco10k.txt", "r") as f:
         document_text = f.read()
     
     # Split the document into chunks
