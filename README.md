@@ -51,18 +51,16 @@ modal secret create openai-key-1 OPENAI_API_KEY=your-key-here
 
 #### 3. Deploy
 ```bash
-modal deploy agent/agent_v3_enhanced.py
+modal deploy agent/main.py
 ```
 
 #### 4. Run
 ```bash
 # Test a single question
-modal run agent/agent_v3_enhanced.py --question "What was Costco's revenue in 2024?"
+modal run agent/main.py --question "What was Costco's revenue in 2024?"
 
-# Run with additional context
-modal run agent/agent_v3_enhanced.py \
-  --question "Calculate the profit margin" \
-  --context "Revenue was $254B, net income was $7.4B"
+# Run 20-question test suite
+modal run test/quick_test.py
 ```
 
 ### Option 2: Local Development
@@ -82,25 +80,24 @@ python agent/agent_v3_enhanced.py \
 
 ```
 financeAgent/
-├── README.md           # This file
-├── requirements.txt    # Python dependencies
-├── .env               # API keys (create this)
+├── README.md              # This file
+├── requirements.txt       # Dependencies
+├── .env                  # API keys (create this)
 │
-├── agent/             # Core agent code
-│   └── agent_v3_enhanced.py
+├── agent/                # Core agent code
+│   ├── main.py          # 🎯 Main agent to deploy/run
+│   └── setup_knowledge_base.py
 │
-├── test/              # Test suites
-│   └── evaluate.py
+├── test/                 # Test suites
+│   ├── quick_test.py    # 🎯 20-question test
+│   └── evaluate.py      # Full benchmark
 │
-├── docs/              # Documentation
-│   ├── PRD.md        # Product requirements
-│   └── CURRENT_VERSION.md
+├── data/                 # Financial documents
+│   ├── costco_10k_full.txt     # Complete 10-K (218KB)
+│   └── costco_10k_summary.txt  # Brief summary (1.6KB)
 │
-├── data/              # Financial documents
-│   └── costco10k.txt
-│
-└── dump/              # Logs and results
-    └── evaluation_results.md
+├── docs/                 # Documentation
+└── dump/                 # Results & logs
 ```
 
 ## Features

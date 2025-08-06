@@ -14,7 +14,7 @@ import re
 
 # Define the Modal app with enhanced architecture
 app = modal.App(
-    "finance-agent-v3-enhanced",
+    "finance-agent-main",
     image=modal.Image.debian_slim().pip_install(
         "langchain", "langchain-community", "langchain-openai",
         "faiss-cpu", "openai", "tiktoken", "zeroentropy"
