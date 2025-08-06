@@ -1,4 +1,51 @@
-# How the Finance Agent Really Works
+# Architecture Overview (v4)
+
+## Component Graph
+```
+Question
+  │
+  ▼
+Router ──► {structured_data_lookup | document_search | python_calculator}
+  │                                         │
+  └───────────────────▶ Formatter ◀─────────┘
+                       (Final answer)
+```
+
+## Components
+| Name | Tech | Purpose |
+| --- | --- | --- |
+| Router | GPT-4o prompt | Classify query type |
+| structured_data_lookup | SQLite | Exact numeric metrics |
+| document_search | FAISS + embeddings | Narrative text retrieval |
+| python_calculator | Python AST | Safe math evaluation |
+| Formatter | GPT-4o prompt | Compose answer, emit JSON |
+
+## Data Stores
+| Store | Path | Contents |
+| --- | --- | --- |
+| costco_financial_data.db | `data/` | Revenue, profit, etc. |
+| narrative_kb_index | Modal volume `/data` | Narrative text embeddings |
+
+## Request Flow
+1. Router decides tool (≈ 300 ms).
+2. Tool executes:
+   • SQL (< 100 ms)  
+   • FAISS (< 200 ms, top-5)  
+   • Calc (< 50 ms)
+3. Formatter builds final answer (< 400 ms).
+4. Response returned with JSON when numeric.
+
+## Trade-offs
+| Decision | Pro | Con |
+| --- | --- | --- |
+| Separate tools | Accuracy, cost | More code paths |
+| JSON numbers | Machine-parsable | Slightly more tokens |
+| AST calc | Secure | Limited ops |
+
+## Extensibility
+- **New metric** → add row in SQLite.
+- **New docs** → append text, rebuild index.
+- **New math func** → whitelist in calculator.
 
 ## The Kitchen Analogy 🍳
 

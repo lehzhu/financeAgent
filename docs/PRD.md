@@ -1,4 +1,47 @@
-# The FinanceQA Agent Story: From 46% to 90% Accuracy
+# Product Requirements Document (PRD)
+
+## 1. Objective
+Build an AI agent that answers questions about Costco’s 10-K with ≥ 85 % exact-match accuracy, ≤ 3 s P95 latency and ≤ $0.03 cost per query.
+
+## 2. Success Metrics
+| Metric | Target |
+| --- | --- |
+| Accuracy (FinanceQA) | ≥ 85 % |
+| Latency (P95) | < 3 s |
+| Cost / Query | < $0.03 |
+| Token Budget | ≤ 2 k |
+
+## 3. Scope (v4)
+1. Router → classify **metric / narrative / calc**.
+2. `structured_data_lookup` → SQLite for numeric metrics.
+3. `document_search` → FAISS over narrative text only.
+4. `python_calculator` → AST-based safe evaluator.
+5. Formatter → single answer, JSON block for numbers.
+
+## 4. Out-of-Scope (v4)
+- Multi-company support
+- Real-time market data
+- Assumption generation
+
+## 5. Milestones
+| Date | Deliverable |
+| --- | --- |
+| 2025-08-05 | Narrative FAISS index built |
+| 2025-08-05 | SQLite metric DB created |
+| 2025-08-06 | v4 agent deployed on Modal |
+| 2025-08-06 | Benchmark ≥ 85 % accuracy |
+
+## 6. Future Work
+- Assumption engine for missing data
+- Multi-document comparison (peer analysis)
+- Real-time data connector (market APIs)
+
+## 7. Risks & Mitigations
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Router misclassification | Wrong tool → bad answer | More examples + logging |
+| Stale DB | Outdated numbers | Rebuild DB after each 10-K |
+| Large index | Slower search | Keep top-k = 5, GPU FAISS if needed |
 
 ## Where We Started 🚀
 
