@@ -12,17 +12,64 @@ app = modal.App(
 )
 
 def extract_number(text):
-    """Extract numerical value from text, handling various formats."""
+    """Extract numerical value from text, handling various formats including JSON."""
     if text is None:
         return None
     
     # Convert to string and clean
     text = str(text).strip()
     
-    # Look for patterns like "is $X" or "is X" or "= X"
+    # First, check if the text contains our structured JSON format
+    import json
     import re
     
-    # First try to find values after "is", "=", or ":"
+    # Look for JSON format {"answer": <number>, "unit": "<unit>"}
+    json_pattern = r'\{"answer":\s*(\d+(?:\.\d+)?),\s*"unit":\s*"([^"]+)"\}'
+    json_match = re.search(json_pattern, text)
+    if json_match:
+        try:
+            value = float(json_match.group(1))
+            unit = json_match.group(2).lower()
+            
+            # Convert based on unit
+            if "million" in unit:
+                value *= 1000000
+            elif "billion" in unit:
+                value *= 1000000000
+            elif "thousand" in unit or "k" in unit:
+                value *= 1000
+            elif "percent" in unit or "%" in unit:
+                # Percentages are kept as-is
+                pass
+                
+            return value
+        except:
+            pass
+    
+    # Try parsing as complete JSON
+    try:
+        # Find JSON object in the text
+        json_start = text.find('{')
+        json_end = text.rfind('}')
+        if json_start >= 0 and json_end > json_start:
+            json_str = text[json_start:json_end+1]
+            data = json.loads(json_str)
+            if isinstance(data, dict) and 'answer' in data:
+                value = float(data['answer'])
+                unit = data.get('unit', '').lower()
+                
+                if "million" in unit:
+                    value *= 1000000
+                elif "billion" in unit:
+                    value *= 1000000000
+                elif "thousand" in unit or "k" in unit:
+                    value *= 1000
+                    
+                return value
+    except:
+        pass
+    
+    # Fallback to original patterns
     patterns = [
         r'(?:is|equals?|=|:)\s*\$?([\d,]+(?:\.\d+)?)',
         r'\$([\d,]+(?:\.\d+)?)\s*(?:million|billion)?',

@@ -129,17 +129,113 @@ class EnhancedFinanceTools:
         return self.retriever.retrieve(query)
     
     def python_calculator(self, expression: str) -> str:
-        """Execute safe mathematical calculations."""
+        """Execute safe mathematical calculations using AST parsing."""
         print(f"Calculating: {expression}")
-        try:
-            expr = expression.strip()
-            # Allow only safe mathematical operations
-            allowed_chars = "0123456789+-*/()., "
-            if all(c in allowed_chars for c in expr):
-                result = eval(expr)
-                return str(result)
+        import ast
+        import operator
+        import math
+        
+        # Define allowed operations
+        allowed_operations = {
+            ast.Add: operator.add,
+            ast.Sub: operator.sub,
+            ast.Mult: operator.mul,
+            ast.Div: operator.truediv,
+            ast.FloorDiv: operator.floordiv,
+            ast.Mod: operator.mod,
+            ast.Pow: operator.pow,
+            ast.USub: operator.neg,
+            ast.UAdd: operator.pos,
+        }
+        
+        # Define allowed functions
+        allowed_functions = {
+            'abs': abs,
+            'round': round,
+            'min': min,
+            'max': max,
+            'sum': sum,
+            'sqrt': math.sqrt,
+            'log': math.log,
+            'log10': math.log10,
+            'exp': math.exp,
+            'sin': math.sin,
+            'cos': math.cos,
+            'tan': math.tan,
+            'ceil': math.ceil,
+            'floor': math.floor,
+        }
+        
+        # Define allowed constants
+        allowed_names = {
+            'pi': math.pi,
+            'e': math.e,
+        }
+        
+        def safe_eval(node):
+            """Recursively evaluate AST nodes safely."""
+            if isinstance(node, ast.Constant):  # Python 3.8+
+                return node.value
+            elif isinstance(node, ast.Num):  # Backward compatibility
+                return node.n
+            elif isinstance(node, ast.BinOp):
+                if type(node.op) in allowed_operations:
+                    left = safe_eval(node.left)
+                    right = safe_eval(node.right)
+                    return allowed_operations[type(node.op)](left, right)
+                else:
+                    raise ValueError(f"Operation {type(node.op).__name__} not allowed")
+            elif isinstance(node, ast.UnaryOp):
+                if type(node.op) in allowed_operations:
+                    operand = safe_eval(node.operand)
+                    return allowed_operations[type(node.op)](operand)
+                else:
+                    raise ValueError(f"Unary operation {type(node.op).__name__} not allowed")
+            elif isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name) and node.func.id in allowed_functions:
+                    args = [safe_eval(arg) for arg in node.args]
+                    return allowed_functions[node.func.id](*args)
+                else:
+                    func_name = node.func.id if isinstance(node.func, ast.Name) else "unknown"
+                    raise ValueError(f"Function '{func_name}' not allowed")
+            elif isinstance(node, ast.Name):
+                if node.id in allowed_names:
+                    return allowed_names[node.id]
+                else:
+                    raise ValueError(f"Name '{node.id}' not allowed")
+            elif isinstance(node, ast.List):
+                return [safe_eval(elem) for elem in node.elts]
+            elif isinstance(node, ast.Tuple):
+                return tuple(safe_eval(elem) for elem in node.elts)
             else:
-                return "Error: Expression contains invalid characters"
+                raise ValueError(f"AST node type {type(node).__name__} not allowed")
+        
+        try:
+            # Clean the expression
+            expr = expression.strip()
+            
+            # Parse the expression into an AST
+            tree = ast.parse(expr, mode='eval')
+            
+            # Evaluate safely
+            result = safe_eval(tree.body)
+            
+            # Format the result nicely
+            if isinstance(result, float):
+                # Round to avoid floating point precision issues
+                if result == int(result):
+                    return str(int(result))
+                else:
+                    return f"{result:.10g}"  # Use g format to avoid scientific notation for reasonable numbers
+            else:
+                return str(result)
+                
+        except SyntaxError as e:
+            return f"Syntax error in expression: {str(e)}"
+        except ValueError as e:
+            return f"Security error: {str(e)}"
+        except ZeroDivisionError:
+            return "Error: Division by zero"
         except Exception as e:
             return f"Calculation error: {str(e)}"
 
@@ -150,7 +246,7 @@ def router_agent(question: str) -> str:
     """Decides which tool to use based on the question."""
     client = OpenAI()
     
-    prompt = f"""You are a routing agent. Choose the best tool for this question.
+    prompt = f"""You are a routing agent. Think step-by-step to choose the best tool for this question.
     
 Tools:
 - document_search: Use for questions about specific financial data, company metrics, or information from reports
@@ -158,6 +254,11 @@ Tools:
 - general_qa: Use for conceptual questions or when no specific tool applies
 
 Question: {question}
+
+Think step-by-step:
+1. What type of information is the question asking for?
+2. Does it require specific data lookup, calculation, or general knowledge?
+3. Which tool best matches this need?
 
 Respond with ONLY the tool name, nothing else."""
     
@@ -178,13 +279,36 @@ def calculation_agent(question: str, context: str = None) -> str:
     """Extracts and performs calculations from questions."""
     client = OpenAI()
     
-    prompt = f"""Extract the mathematical calculation from this question.
+    prompt = f"""Extract the mathematical calculation from this question. Think step-by-step.
     
 Question: {question}
 {f"Context: {context}" if context else ""}
 
-Return ONLY the mathematical expression to calculate (e.g., "1000 * (1 - 0.3)").
-If no calculation is needed, return "NO_CALCULATION"."""
+Think step-by-step:
+1. Identify all numbers mentioned in the question
+2. Determine what mathematical operation is needed
+3. Construct the expression using Python syntax
+
+You can use:
+- Basic operators: +, -, *, /, //, %, **
+- Functions: sqrt(), abs(), round(), min(), max(), sum(), log(), log10(), exp()
+- Trigonometric: sin(), cos(), tan()
+- Rounding: ceil(), floor()
+- Constants: pi, e
+
+Return ONLY the mathematical expression to calculate.
+If no calculation is needed, return "NO_CALCULATION".
+
+Examples:
+- "What is 30% of 1000?" → "1000 * 0.3"
+- "What is the difference between 500 and 300?" → "500 - 300"
+- "If revenue is $1M and costs are $600K, what's the profit?" → "1000000 - 600000"
+- "What's the square root of 144?" → "sqrt(144)"
+- "Calculate compound interest on $1000 at 5% for 10 years" → "1000 * (1 + 0.05) ** 10"
+- "What's the profit margin if profit is $400K and revenue is $1M?" → "(400000 / 1000000) * 100"
+- "Calculate monthly payment on $300K at 4% annual" → "300000 * 0.04 / 12"
+
+Expression:"""
     
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -198,7 +322,7 @@ If no calculation is needed, return "NO_CALCULATION"."""
 
 @app.function()
 def final_answer_agent(question: str, tool_result: str, tool_type: str) -> str:
-    """Formats the final answer based on tool results."""
+    """Formats the final answer based on tool results with structured output."""
     client = OpenAI()
     
     # Add context about enhanced retrieval
@@ -206,20 +330,39 @@ def final_answer_agent(question: str, tool_result: str, tool_type: str) -> str:
     if "document" in tool_type:
         retrieval_note = "\nNote: Results were intelligently ranked for relevance using advanced AI reranking."
     
-    prompt = f"""You are a financial analyst providing a final answer.
+    prompt = f"""You are a financial analyst providing a final answer. Think step-by-step.
     
 Question: {question}
 Tool Used: {tool_type}
 Tool Result: {tool_result}
 {retrieval_note}
 
-Based on the tool result, provide a clear, concise answer.
-- For numerical answers, state the number with appropriate units
-- For yes/no questions, start with "Yes" or "No" then explain
-- Be specific and accurate
-- If the information seems relevant, trust that the AI ranking selected the best content
+INSTRUCTIONS:
+1. First, analyze the tool result to extract the key information
+2. Think step-by-step about what the question is asking
+3. Formulate your answer following these STRICT rules:
 
-Answer:"""
+FORMATTING RULES:
+- For NUMERICAL answers: Always present the final numerical answer in this EXACT format:
+  {{"answer": <number>, "unit": "<unit>"}}
+  Examples:
+  {{"answer": 11522, "unit": "millions of USD"}}
+  {{"answer": 23.5, "unit": "percent"}}
+  {{"answer": 1250000, "unit": "shares"}}
+  
+- For YES/NO questions: Start your answer with exactly "Yes" or "No" (capital first letter), then explain.
+  Example: "Yes, the company's revenue increased because..."
+  
+- For OTHER questions: Be direct and specific. State the main answer in the first sentence.
+
+IMPORTANT:
+- Extract numbers carefully from the tool result
+- Convert text numbers (e.g., "11.5 billion") to numerical format
+- Be precise with units (millions, billions, percentages, etc.)
+- If the tool result doesn't contain the answer, state "Information not found in the provided data"
+- Always end numerical answers with the JSON format specified above
+
+Think step-by-step, then provide your answer:"""
     
     response = client.chat.completions.create(
         model="gpt-4o-mini",
