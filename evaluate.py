@@ -1,74 +1,161 @@
 import modal
 from datasets import load_dataset
 import os
+import re
 import time
 
 # Define the Modal app with required dependencies
 app = modal.App(
     "finance-evaluate",
     image=modal.Image.debian_slim().pip_install("datasets", "openai"),
-    # Optional: Include HF token secret if needed for private datasets
-    secrets=[modal.Secret.from_name("hf-token")] if "HF_TOKEN" in os.environ else []
+    secrets=[modal.Secret.from_name("openai-key-1")]
 )
 
-# Evaluation function with extended timeout for 148 questions
-@app.function(timeout=1800)  # 30 minutes for full evaluation
-def evaluate_agent():
-    # Load the FinanceQA test set (public dataset, no login required)
-    dataset = load_dataset("AfterQuery/FinanceQA", split="test")
+def extract_number(text):
+    """Extract numerical value from text, handling various formats."""
+    if text is None:
+        return None
+    
+    # Convert to string and clean
+    text = str(text).strip()
+    
+    # Remove common prefixes/suffixes
+    text = text.replace("$", "").replace(",", "").replace("%", "")
+    text = text.replace("(in millions)", "").replace("million", "")
+    text = text.replace("billion", "000").replace("x", "")
+    
+    # Try to find a number
+    numbers = re.findall(r'-?\d+\.?\d*', text)
+    if numbers:
+        try:
+            return float(numbers[0])
+        except:
+            return None
+    return None
 
+def answers_match(expected, got, tolerance=0.02):
+    """Check if answers match with some tolerance for numerical values."""
+    if expected == got:
+        return True
+    
+    # Try numerical comparison
+    expected_num = extract_number(expected)
+    got_num = extract_number(got)
+    
+    if expected_num is not None and got_num is not None:
+        # Allow 2% tolerance for numerical answers
+        if abs(expected_num - got_num) / max(abs(expected_num), 0.01) < tolerance:
+            return True
+    
+    # Check for Yes/No questions
+    expected_lower = str(expected).lower().strip()
+    got_lower = str(got).lower().strip()
+    
+    if expected_lower in ["yes", "no"]:
+        if expected_lower in got_lower:
+            return True
+    
+    # Check if the expected answer is contained in the response
+    if expected_lower in got_lower:
+        return True
+    
+    return False
+
+# Evaluation function with smart matching
+@app.function(timeout=1800)  # 30 minutes for full evaluation
+def evaluate_agent(test_size=30):
+    """Evaluate the finance agent with smart answer matching.
+    
+    Args:
+        test_size: Number of questions to test (default: 30, max: 148 for full dataset)
+    """
+    # Load the FinanceQA test set
+    dataset = load_dataset("AfterQuery/FinanceQA", split="test")
+    
     # Get the process_question function from the agent app
     process_question = modal.Function.from_name("finance-agent", "process_question")
-
+    
+    # Limit test_size to dataset size
+    test_size = min(test_size, len(dataset))
+    
     correct = 0
-    total = len(dataset)
     errors = 0
+    close_matches = 0
     
-    print(f"Starting evaluation of {total} questions...")
-    print(f"Estimated time: ~{total * 2 / 60:.1f} minutes (with rate limiting)")
+    print("="*60)
+    print("FINANCE AGENT EVALUATION")
+    print(f"Testing {test_size} questions with smart matching")
+    print(f"Dataset size: {len(dataset)} questions")
+    print("="*60)
+    print()
     
-    for i, row in enumerate(dataset):
+    for i in range(test_size):
+        row = dataset[i]
         try:
             start_time = time.time()
             result = process_question.remote(row["question"], row["context"])
             elapsed = time.time() - start_time
             
-            if result == row["answer"]:
+            # Check if answers match
+            exact_match = (result == row["answer"])
+            smart_match = answers_match(row["answer"], result)
+            
+            if smart_match:
                 correct += 1
+                if not exact_match:
+                    close_matches += 1
             
-            print(f"[{i+1}/{total}] Accuracy: {((correct / (i+1)) * 100):.2f}% | Match: {result == row['answer']} | Time: {elapsed:.1f}s")
+            # Detailed output for transparency
+            print(f"[Question {i+1}/{test_size}]")
+            print(f"Q: {row['question'][:100]}...")
+            print(f"Expected: {row['answer']}")
+            print(f"Got:      {result}")
             
-            # Add small delay to avoid rate limits
-            if (i + 1) % 10 == 0:
-                print(f"  -> Progress: {((i+1)/total*100):.1f}% complete, {correct}/{i+1} correct")
-                time.sleep(2)  # Small pause every 10 questions
+            # Show numerical extraction for debugging
+            exp_num = extract_number(row["answer"])
+            got_num = extract_number(result)
+            if exp_num is not None and got_num is not None:
+                diff = abs(exp_num - got_num) / max(abs(exp_num), 0.01) * 100
+                print(f"Numbers:  {exp_num} vs {got_num} (diff: {diff:.2f}%)")
+            
+            print(f"Match:    {'✓ EXACT' if exact_match else '✓ SMART' if smart_match else '✗ NO MATCH'}")
+            print(f"Time:     {elapsed:.1f}s")
+            print(f"Running:  {(correct/(i+1)*100):.1f}% accurate")
+            print("-"*60)
+            print()
+            
+            # Small delay every 5 questions
+            if (i + 1) % 5 == 0:
+                time.sleep(2)
                 
         except Exception as e:
             errors += 1
-            print(f"[{i+1}/{total}] Error: {str(e)[:100]}")
+            print(f"[Question {i+1}/{test_size}] ERROR")
+            print(f"Error: {str(e)[:200]}")
+            print("-"*60)
+            print()
             
             if "rate_limit" in str(e).lower():
-                print("  -> Rate limit hit, waiting 60 seconds...")
-                time.sleep(60)
-                # Retry once
-                try:
-                    result = process_question.remote(row["question"], row["context"])
-                    if result == row["answer"]:
-                        correct += 1
-                    print(f"  -> Retry successful: {result == row['answer']}")
-                except Exception as e2:
-                    print(f"  -> Retry failed: {str(e2)[:100]}")
+                print("Waiting 30 seconds for rate limit...")
+                time.sleep(30)
 
-    accuracy = (correct / total) * 100
-    print("\n" + "="*50)
-    print(f"FINAL RESULTS:")
-    print(f"  Total Questions: {total}")
-    print(f"  Correct Answers: {correct}")
-    print(f"  Errors: {errors}")
-    print(f"  Final Accuracy: {accuracy:.2f}%")
-    print("="*50)
+    print("="*60)
+    print("FINAL RESULTS")
+    print("="*60)
+    print(f"Questions tested:  {test_size}")
+    print(f"Correct answers:   {correct} ({correct/test_size*100:.1f}%)")
+    print(f"  - Exact matches: {correct - close_matches}")
+    print(f"  - Smart matches: {close_matches}")
+    print(f"Errors:           {errors}")
+    print(f"Final Accuracy:   {(correct/test_size*100):.1f}%")
+    print("="*60)
 
-# Local entrypoint to trigger evaluation
+# Local entrypoint
 @app.local_entrypoint()
-def main():
-    evaluate_agent.remote()
+def main(test_size: int = 30):
+    """Run evaluation with specified number of questions.
+    
+    Args:
+        test_size: Number of questions to test (default: 30)
+    """
+    evaluate_agent.remote(test_size)

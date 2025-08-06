@@ -1,0 +1,64 @@
+COSTCO WHOLESALE CORPORATION
+FORM 10-K
+For the fiscal year ended September 1, 2024
+
+SELECTED FINANCIAL DATA
+
+Fiscal Year 2024:
+Total Revenue: $254,453 million
+Net Sales: $249,625 million  
+Membership Fees: $4,828 million
+Gross Profit: $32,095 million
+Operating Income: $9,285 million
+Net Income: $7,367 million
+Basic Earnings Per Share: $16.56
+Diluted Earnings Per Share: $16.53
+
+Fiscal Year 2023:
+Total Revenue: $242,290 million
+Net Sales: $237,710 million
+Membership Fees: $4,580 million
+Gross Profit: $30,883 million
+Operating Income: $8,112 million
+Net Income: $6,292 million
+Basic Earnings Per Share: $14.16
+Diluted Earnings Per Share: $14.11
+
+Balance Sheet Data (2024):
+Total Assets: $71,055 million
+Current Assets: $32,696 million
+Total Liabilities: $43,787 million
+Current Liabilities: $34,303 million
+Total Equity: $27,268 million
+
+Key Metrics 2024:
+EBIT: $9,285 million
+EBITDA: $11,522 million
+Adjusted EBITDA: $11,969 million
+Operating Profit Margin: 3.65%
+Effective Tax Rate: 24.40%
+Marginal Tax Rate: 24.00%
+
+Stock Information:
+Shares Outstanding (Basic): 444.40 million
+Shares Outstanding (Diluted): 445.02 million
+Stock Price at Year End: $940.00
+
+Debt Information:
+Long-term Debt: $5,360 million
+Short-term Debt: $0 million
+Cash and Cash Equivalents: $11,196 million
+Net Debt: -$5,836 million (Net Cash Position)
+
+Capital Structure:
+Market Capitalization: $418,856 million
+Enterprise Value: $424,216 million
+Debt to Equity Ratio: 2.73%
+Cost of Equity (CAPM): 9.66%
+WACC: 9.56%
+
+Additional Information:
+Number of Warehouses: 891
+Total Square Footage: 127 million sq ft
+Average Warehouse Size: 142,688 sq ft
+Number of Members: 136.8 million
