@@ -65,16 +65,6 @@ Question → Router → {SQL Database | FAISS Search | AST Calculator} → Final
 - **New docs** → append text, rebuild index.
 - **New math func** → whitelist in calculator.
 
-## The Kitchen Analogy 🍳
-
-Imagine you're in a kitchen and someone asks you three different tasks:
-1. "What temperature is the oven?" → You check the thermometer
-2. "What does this recipe say about marinating?" → You read the cookbook
-3. "How much is 1.5 cups in milliliters?" → You calculate it
-
-You don't read the entire cookbook to find the oven temperature. You don't calculate what the recipe says. You use the right tool for each job.
-
-That's exactly how our Finance Agent works!
 
 ## The Three Tools 🛠️
 
@@ -158,32 +148,6 @@ def route_question(question):
         return "Use Calculator"
 ```
 
-**Real example**:
-```
-Q: "What was the gross margin?"
-Router thinks: "This is asking for a specific financial metric"
-Decision: "Use SQL Database"
-```
-
-## The Complete Flow 🌊
-
-Here's what happens when you ask a question:
-
-```
-1. You ask: "What was Costco's revenue growth rate?"
-                    ↓
-2. Router: "Hmm, this needs calculation of growth between two revenues"
-                    ↓  
-3. First, get revenues: SQL → "2024: $254B, 2023: $242B"
-                    ↓
-4. Then calculate: Calculator → "(254-242)/242 * 100 = 4.96%"
-                    ↓
-5. Format nicely: "The revenue growth rate was 4.96%"
-                    ↓
-6. Add JSON: {"answer": 4.96, "unit": "percent"}
-```
-
-## Why We Made These Choices 🤔
 
 ### Choice 1: Three Tools vs One Mega-Tool
 
@@ -217,7 +181,7 @@ All mean the same thing, but computers get confused!
 {"answer": 254000, "unit": "millions of USD"}
 ```
 
-Now there's no ambiguity!
+
 
 ### Choice 3: AST Calculator vs eval()
 
@@ -250,24 +214,6 @@ A: "Let me think step-by-step:
     4. Growth = 4.96%"
 ```
 
-More reliable!
-
-## Performance Deep Dive 📊
-
-### Speed Comparison
-| Operation | v1 (Original) | v4 (Current) |
-|-----------|---------------|--------------|
-| SQL Lookup | N/A (didn't exist) | <100ms |
-| Document Search | 10-15 seconds | 200ms |
-| Calculation | N/A (couldn't do it) | <50ms |
-| Total | 10-15 seconds | 1-3 seconds |
-
-### Token Usage
-| Tool | Tokens Used | Why So Efficient |
-|------|-------------|------------------|
-| SQL | <500 | Only returns the exact data |
-| FAISS | ~2,000 | Only retrieves 5 relevant chunks |
-| Calculator | <100 | Just the expression and result |
 
 ### Cost Analysis
 - **v1**: $0.55 per question (sending entire 10-K)
@@ -323,40 +269,3 @@ allowed_functions['average'] = statistics.mean
 2. Rebuild the index: `modal run setup_narrative_kb.py`
 3. The search tool will include it automatically
 
-## Debugging Tips 🐛
-
-### "Wrong tool selected!"
-Check the router logs:
-```python
-print(f"Router selected: {tool}")  # We already log this
-```
-
-### "SQL returned nothing!"
-Check your query:
-```sql
--- See what's in the database
-SELECT DISTINCT item FROM financial_data;
-```
-
-### "Calculator failed!"
-Test the expression directly:
-```python
-python test_calculator_simple.py
-```
-
-## The Philosophy Behind It All 💭
-
-We didn't set out to build the most sophisticated system. We set out to build the most effective one.
-
-Every decision came from asking: "What would a human financial analyst do?"
-- They'd look up numbers in tables (SQL)
-- They'd read relevant sections (FAISS)
-- They'd calculate when needed (Calculator)
-
-By mimicking human behavior with specialized tools, we achieved something remarkable: a system that's both simple AND powerful.
-
-**Remember**: The best architecture isn't the one with the most features. It's the one that solves the problem most effectively.
-
----
-
-*"Simplicity is the ultimate sophistication." - Leonardo da Vinci*

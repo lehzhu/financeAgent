@@ -16,7 +16,7 @@ A: "Costco's total revenue in 2024 was $254,123 million."
 📚 **Document Search** → Narrative/conceptual questions (100% accurate)  
 🧮 **Safe Calculator** → Mathematical calculations (0% - needs work)
 
-Base GPT-4o = 11% accuracy  
+Base GPT-4o-mini = 11% accuracy  
 Three specialized tools = 50% accuracy (355% improvement)
 
 ## Quick Start
@@ -89,7 +89,7 @@ docs/
   PRD.md            # Our story
 ```
 
-## Current Status (January 2025)
+## Current Status 
 
 - ✅ 50% accuracy achieved (up from 11% baseline)
 - ✅ Three-tool architecture deployed on Modal
@@ -105,4 +105,3 @@ docs/
 
 ---
 
-*Built with ❤️ by developers who believe in doing one thing well*
