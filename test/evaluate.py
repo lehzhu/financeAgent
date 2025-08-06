@@ -19,18 +19,45 @@ def extract_number(text):
     # Convert to string and clean
     text = str(text).strip()
     
-    # Remove common prefixes/suffixes
-    text = text.replace("$", "").replace(",", "").replace("%", "")
-    text = text.replace("(in millions)", "").replace("million", "")
-    text = text.replace("billion", "000").replace("x", "")
+    # Look for patterns like "is $X" or "is X" or "= X"
+    import re
     
-    # Try to find a number
-    numbers = re.findall(r'-?\d+\.?\d*', text)
+    # First try to find values after "is", "=", or ":"
+    patterns = [
+        r'(?:is|equals?|=|:)\s*\$?([\d,]+(?:\.\d+)?)',
+        r'\$([\d,]+(?:\.\d+)?)\s*(?:million|billion)?',
+        r'([\d,]+(?:\.\d+)?)\s*(?:million|billion)',
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            # Clean and return the number
+            num_str = match.group(1).replace(",", "")
+            try:
+                value = float(num_str)
+                # Handle million/billion
+                if "million" in text.lower():
+                    value *= 1000000 if value < 1000 else 1  # Avoid double conversion
+                elif "billion" in text.lower():
+                    value *= 1000000000 if value < 1000000 else 1
+                return value
+            except:
+                pass
+    
+    # Fallback: get the last number in the text (often the answer)
+    numbers = re.findall(r'\d+[,\d]*(?:\.\d+)?', text)
     if numbers:
-        try:
-            return float(numbers[0])
-        except:
-            return None
+        # Skip years (4 digits starting with 19 or 20)
+        for num in reversed(numbers):
+            num_clean = num.replace(",", "")
+            if len(num_clean) == 4 and num_clean[:2] in ['19', '20']:
+                continue
+            try:
+                return float(num_clean)
+            except:
+                pass
+    
     return None
 
 def answers_match(expected, got, tolerance=0.02):
@@ -72,8 +99,11 @@ def evaluate_agent(test_size=30):
     # Load the FinanceQA test set
     dataset = load_dataset("AfterQuery/FinanceQA", split="test")
     
-    # Get the process_question function from the agent app
-    process_question = modal.Function.from_name("finance-agent", "process_question")
+    # Import Modal to call the deployed agent
+    import modal
+    
+    # Get the deployed function
+    process_question = modal.Function.lookup("finance-agent-main", "process_question_enhanced")
     
     # Limit test_size to dataset size
     test_size = min(test_size, len(dataset))
@@ -93,7 +123,7 @@ def evaluate_agent(test_size=30):
         row = dataset[i]
         try:
             start_time = time.time()
-            result = process_question.remote(row["question"], row["context"])
+            result = process_question.remote(row["question"], row.get("context", ""))
             elapsed = time.time() - start_time
             
             # Check if answers match
