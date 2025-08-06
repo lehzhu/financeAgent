@@ -222,7 +222,7 @@ Based on the tool result, provide a clear, concise answer.
 Answer:"""
     
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0
     )
@@ -265,8 +265,12 @@ def process_question_enhanced(question: str, context: str = None) -> str:
             tool_result = "No calculation could be extracted from the question"
             
     elif "document" in tool_choice:
-        # Use enhanced two-stage retrieval
-        tool_result = tools.document_search(question)
+        # If context is provided (from dataset), use it directly
+        if context and len(context) > 100:  # Substantial context provided
+            tool_result = context
+        else:
+            # Use enhanced two-stage retrieval from knowledge base
+            tool_result = tools.document_search(question)
         
     else:  # general_qa or fallback
         tool_result = context if context else "No specific tool needed"
