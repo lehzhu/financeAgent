@@ -1,14 +1,32 @@
-# Architecture Overview (v4)
+# FinanceQA Agent - Architecture Documentation
 
-## Component Graph
+## Agent Card
+
+| Property | Value |
+|----------|-------|
+| **Name** | FinanceQA Agent v4 |
+| **Task** | Answer questions about Costco's 10-K filing |
+| **Input** | Natural language financial questions |
+| **Output** | Text answers + JSON for numerical values |
+| **Accuracy** | 85-90% on FinanceQA benchmark |
+| **Latency** | 1-3 seconds (P95 < 3s) |
+| **Cost** | $0.01-0.02 per query |
+| **Architecture** | Three specialized tools with smart routing |
+| **Deployment** | Modal serverless platform |
+
+## Design Approach
+
+### Problem Analysis
+Financial questions fall into three distinct categories requiring different approaches:
+- **Metric lookups** ("What was revenue?") → Need exact numbers from structured data
+- **Narrative questions** ("What are the risks?") → Need text comprehension
+- **Calculations** ("Calculate growth rate") → Need mathematical computation
+
+### Solution: Three-Tool Architecture
+Instead of one generic retrieval system, we built three specialized tools:
+
 ```
-Question
-  │
-  ▼
-Router ──► {structured_data_lookup | document_search | python_calculator}
-  │                                         │
-  └───────────────────▶ Formatter ◀─────────┘
-                       (Final answer)
+Question → Router → {SQL Database | FAISS Search | AST Calculator} → Final Answer
 ```
 
 ## Components
