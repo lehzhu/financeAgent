@@ -1,271 +1,101 @@
-# FinanceQA Agent - Architecture Documentation
-
-## Agent Card
-
-| Property | Value |
-|----------|-------|
-| **Name** | FinanceQA Agent v4 |
-| **Task** | Answer questions about Costco's 10-K filing |
-| **Input** | Natural language financial questions |
-| **Output** | Text answers + JSON for numerical values |
-| **Accuracy** | 85-90% on FinanceQA benchmark |
-| **Latency** | 1-3 seconds (P95 < 3s) |
-| **Cost** | $0.01-0.02 per query |
-| **Architecture** | Three specialized tools with smart routing |
-| **Deployment** | Modal serverless platform |
-
-## Design Approach
-
-### Problem Analysis
-Financial questions fall into three distinct categories requiring different approaches:
-- **Metric lookups** ("What was revenue?") → Need exact numbers from structured data
-- **Narrative questions** ("What are the risks?") → Need text comprehension
-- **Calculations** ("Calculate growth rate") → Need mathematical computation
-
-### Solution: Three-Tool Architecture
-Instead of one generic retrieval system, we built three specialized tools:
-
-```
-Question → Router → {SQL Database | FAISS Search | AST Calculator} → Final Answer
-```
-
-## Components
-| Name | Tech | Purpose |
-| --- | --- | --- |
-| Router | GPT-4o prompt | Classify query type |
-| structured_data_lookup | SQLite | Exact numeric metrics |
-| document_search | FAISS + embeddings | Narrative text retrieval |
-| python_calculator | Python AST | Safe math evaluation |
-| Formatter | GPT-4o prompt | Compose answer, emit JSON |
-
-## Data Stores
-| Store | Path | Contents |
-| --- | --- | --- |
-| costco_financial_data.db | `data/` | Revenue, profit, etc. |
-| narrative_kb_index | Modal volume `/data` | Narrative text embeddings |
-
-## Request Flow
-1. Router decides tool (≈ 300 ms).
-2. Tool executes:
-   • SQL (< 100 ms)  
-   • FAISS (< 200 ms, top-5)  
-   • Calc (< 50 ms)
-3. Formatter builds final answer (< 400 ms).
-4. Response returned with JSON when numeric.
-
-## Trade-offs
-| Decision | Pro | Con |
-| --- | --- | --- |
-| Separate tools | Accuracy, cost | More code paths |
-| JSON numbers | Machine-parsable | Slightly more tokens |
-| AST calc | Secure | Limited ops |
-
-## Extensibility
-- **New metric** → add row in SQLite.
-- **New docs** → append text, rebuild index.
-- **New math func** → whitelist in calculator.
-
-
-## The Three Tools 🛠️
-
-### Tool 1: The Financial Database (SQL) 📊
-
-**What it's for**: Questions like "What was the revenue?"
-
-**How it works**: 
-- We pre-loaded all the numbers from financial statements into a database
-- When you ask for a specific number, we just look it up
-- Like checking a thermometer instead of calculating temperature from air pressure
-
-**Example**:
-```
-Q: "What was Costco's revenue in 2024?"
-Process: SELECT value FROM financial_data WHERE item='Revenue' AND year=2024
-A: "$254,123 million"
-```
-
-**Why this is smart**: 
-- ⚡ Lightning fast (under 100ms)
-- 🎯 100% accurate (it's just a lookup!)
-- 💰 Costs almost nothing
-
-### Tool 2: The Document Reader (FAISS) 📚
-
-**What it's for**: Questions like "What are the main risks?"
-
-**How it works**:
-- We split the narrative parts of the 10-K into chunks
-- Created embeddings (think: smart summaries) of each chunk
-- When you ask, we find the most relevant chunks
-- Like using a cookbook's index instead of reading every page
-
-**Example**:
-```
-Q: "What are Costco's competitive advantages?"
-Process: Find chunks most similar to "competitive advantages"
-A: "Costco's advantages include bulk purchasing power, membership model..."
-```
+# FinanceAgent – Architecture & Design Outline
 
-**Why this is smart**:
-- 📖 Only reads relevant sections
-- 🔍 Understands context and meaning
-- ⏱️ Fast (200ms to find the right chunks)
-
-### Tool 3: The Calculator (AST) 🧮
-
-**What it's for**: Questions like "Calculate the growth rate"
-
-**How it works**:
-- Extracts the math from your question
-- Safely evaluates it (no security risks!)
-- Like using a calculator instead of searching for the answer
-
-**Example**:
-```
-Q: "What's 15% of 254 billion?"
-Process: Parse "254000000000 * 0.15"
-A: "38,100,000,000"
-```
-
-**Why this is smart**:
-- 🔒 Safe (can't run malicious code)
-- 🎯 Accurate (it's just math!)
-- ⚡ Instant (under 50ms)
-
-## The Router: Our Traffic Controller 🚦
-
-Before using any tool, we need to know WHICH tool to use. Enter the Router Agent.
-
-**How it decides**:
-```python
-def route_question(question):
-    # Think step by step...
-    if asking_for_specific_number:
-        return "Use SQL Database"
-    elif asking_about_concepts_or_narrative:
-        return "Use Document Search"  
-    elif asking_to_calculate:
-        return "Use Calculator"
-```
-
-
-### Choice 1: Three Tools vs One Mega-Tool
-
-**What we tried first**: One big retrieval system
-```
-Every question → Search everything → Hope for the best
-Result: 46% accuracy, slow, expensive
-```
-
-**What we do now**: Specialized tools
-```
-"What's the revenue?" → SQL lookup → 95% accuracy
-"What are risks?" → Document search → 85% accuracy  
-"Calculate X" → Calculator → 90% accuracy
-```
-
-**The lesson**: Specialization beats generalization
+## Agent Summary
 
-### Choice 2: Structured Output (JSON)
-
-**The problem**: 
-- "254 billion" 
-- "$254,000 million"
-- "254B"
-- "Two hundred fifty-four billion"
+**Purpose**:  
+Answer questions about Costco's 10-K using best-available open or API-based language models. Handles both fact lookups (e.g. "What is revenue?"), conceptual/qualitative questions about the business ("What risks are listed?"), and calculations.
 
-All mean the same thing, but computers get confused!
+**Interfaces**:  
+- Plain natural language question (typed or API)
+- Structured JSON answer for numerical queries (e.g. `{ "answer": 254123, "unit": "millions USD" }`)
 
-**The solution**: 
-```json
-{"answer": 254000, "unit": "millions of USD"}
-```
+**Environment**:  
+- Production: Modal cloud (API key gated)
+- Local: Ollama or OpenWebUI with retrieval augmention (Ollama turbo planned)
 
+---
 
+## Current System Design (as of v4)
 
-### Choice 3: AST Calculator vs eval()
+**Routing**  
+A GPT-4o prompt classifies every question into one of three routes:
+- Structured data (metric lookup)
+- Conceptual/narrative (search/semantic retrieval)
+- Calculation
 
-**The dangerous way**:
-```python
-eval("2 + 2")  # Works fine
-eval("__import__('os').system('rm -rf /')")  # Deletes everything!
-```
+**Metric Lookup**  
+- Fetches exact numbers from an up-to-date SQLite DB built from 10-K tables only.
+- Nearly zero latency and high trustworthiness.
 
-**The safe way**: 
-- Parse the expression into a tree
-- Only allow math operations
-- Like having a calculator that only has number buttons
+**Narrative Retrieval**  
+- Uses FAISS + OpenAI embeddings, but indexes only "narrative" prose from filings (no tables).
+- Returns the five most relevant text chunks for relevant questions (risks, strategy, etc).
 
-### Choice 4: "Think Step-by-Step" Prompting
+**Calculations**  
+- Extracts and safely evaluates mathematical expressions using Python's AST parser.
+- Only allows safe arithmetic and whitelisted functions.
 
-**Without it**:
-```
-Q: "What's the revenue growth?"
-A: "4.96%"  (but sometimes "5.2%" or "4%")
-```
+**Formatting**  
+- All numerical/metric answers include a JSON snippet to disambiguate units and values.
+- Final output for each tool is passed through a formatting agent for tone/clarity.
 
-**With it**:
-```
-Q: "What's the revenue growth?"
-A: "Let me think step-by-step:
-    1. Revenue 2024: $254,123M
-    2. Revenue 2023: $242,290M  
-    3. Growth = (254,123 - 242,290) / 242,290
-    4. Growth = 4.96%"
-```
+---
 
+## Key Choices and Trade-offs
 
-### Cost Analysis
-- **v1**: $0.55 per question (sending entire 10-K)
-- **v4**: $0.01-0.02 per question (sending only what's needed)
-- **Savings**: 96-98%!
+1. **Routing before retrieval**  
+   - Why: Putting everything through RAG results in poor recall for structure and slow inference.
+   - Trade-off: Requires a high-quality prompt and some complexity in maintenance.
 
-## Security & Safety 🔒
+2. **Separate DB for metrics, FAISS for narrative**  
+   - Why: Numbers are best fetched directly, not reranked. Narrative is too complex/varied for SQL.
+   - Trade-off: Two pipelines; must keep both in sync when filings update.
 
-### Calculator Security
-```python
-# What we prevent:
-❌ eval("__import__('os').system('bad things')")
-❌ exec("malicious_code()")
-❌ file operations
-❌ network access
+3. **JSON format for key answers**  
+   - Why: LLM output is ambiguous for numbers ("254 billion", "$254,000,000,000", "about 254B"), which harms downstream evaluation.
+   - Trade-off: Slightly higher token cost and formatting failures if not handled carefully.
 
-# What we allow:
-✅ Basic math: +, -, *, /
-✅ Functions: sqrt(), round(), etc.
-✅ Constants: pi, e
-```
+4. **AST Calculator**  
+   - Why: Simple `eval()` is unsafe and hard to restrict. AST allows safe, predictable eval of only allowed math.
+   - Trade-off: Some functions/operators (e.g. custom statistics, string manipulation) are not allowed.
 
-### Data Security
-- SQL: Read-only access, no DROP TABLE
-- FAISS: Only searches pre-indexed content
-- No external API calls during queries
+---
 
-## Extending the System 🔧
+## Results & Benchmarking
 
-### Adding a New Financial Metric
+- **FinanceQA benchmark accuracy**: Typically 85–90% exact match on structured + calculation; 80–85% for qualitative narrative.
+- **Latency**: All routes finish in under 3 seconds per question 95% of the time.
+- **Cost per query**: $0.01–0.03 with current OpenAI API; much lower if running locally with Ollama, but model quality is lower.
+- **Token usage**:
+    - Metrics: under 500
+    - Narrative: about 1,500–2,000
+    - Calculation: < 100
 
-1. Add to the database:
-```python
-# In create_financial_db.py
-("Debt to Equity Ratio", 2024, 0.62, "ratio")
-```
+**Failure modes**:  
+- Router occasionally misclassifies "synthetic" questions (e.g., multi-part or ambiguous), harming recall.
+- FAISS fails when summarizing unknown/new risks/sections not present in top-5 chunks.
+- Calculation tool limited to arithmetic and whitelisted math.
 
-2. That's it! The SQL tool will find it automatically.
+---
 
-### Adding a New Math Function
+## What's Next?
 
-1. Add to calculator whitelist:
-```python
-# In main_v4.py
-allowed_functions['average'] = statistics.mean
-```
+**Planned improvements**:
+- ZeroEntropy reranker integration (for narrative search, to beat OpenAI embeddings or local FAISS ranking).
+- Modal/Ollama "turbo" support for both local-LLM and hybrid cloud execution.
+- More general search: Expand narrative index to include cross-document, multi-filings, and potentially peer comparisons ("How did Costco's profit vs. Walmart's?").
+- Self-evaluation agent: Output not just an answer, but a confidence/reasoning trace (and suggest when model is not confident).
+- Assumption engine: Infer reasonable numbers or disclaimers when data is missing or ambiguous.
+- Unified logging and error reporting to better analyze failure modes in each pipeline.
 
-2. Now users can ask: "Calculate the average of 10, 20, 30"
+---
 
-### Adding a New Document
+**Contact or contribute**:  
+- Add metric: Update DB and tool mapping  
+- Add function: Whitelist in calculator  
+- Add document: Update narrative text, re-index  
+- Issues/feedback: [See repository](../README.md)  
 
-1. Add text to `costco_narrative.txt`
-2. Rebuild the index: `modal run setup_narrative_kb.py`
-3. The search tool will include it automatically
+---
 
+Remove this file and tighten further as features mature; this is meant as a clear, no-nonsense reference for developers and product managers alike.
