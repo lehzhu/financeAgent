@@ -1,0 +1,56 @@
+{
+  "timestamp": "2025-01-06T00:05:00-05:00",
+  "model": "finance-agent-v4-threeTool",
+  "architecture": "Three-Tool System (structured_data_lookup, document_search, python_calculator)",
+  "dataset": "AfterQuery/FinanceQA",
+  "test_size": 10,
+  "results": {
+    "overall_accuracy": 0.5,
+    "correct": 5,
+    "total": 10,
+    "errors": 0,
+    "by_category": {
+      "calculation": {
+        "accuracy": 0.0,
+        "correct": 0,
+        "total": 4
+      },
+      "structured_data": {
+        "accuracy": 0.667,
+        "correct": 2,
+        "total": 3
+      },
+      "narrative": {
+        "accuracy": 1.0,
+        "correct": 1,
+        "total": 1
+      },
+      "other": {
+        "accuracy": 1.0,
+        "correct": 2,
+        "total": 2
+      }
+    }
+  },
+  "configuration": {
+    "router_model": "gpt-4o-mini",
+    "final_answer_model": "gpt-4o-mini",
+    "narrative_chunks": 5,
+    "chunk_size": 1500,
+    "chunk_overlap": 300
+  },
+  "improvements": {
+    "vs_base_gpt4o": "355% improvement (50% vs 11%)",
+    "vs_initial_v4": "115% improvement (50% vs 23.3% before DB setup)"
+  },
+  "issues": {
+    "calculation_tool": "0% accuracy - struggling with complex financial calculations",
+    "number_extraction": "Sometimes extracts wrong units (e.g., 13 instead of 13 million)",
+    "answer_formatting": "Not consistently using JSON format for numerical answers"
+  },
+  "strengths": {
+    "narrative_search": "100% accuracy on conceptual/qualitative questions",
+    "structured_data": "66.7% accuracy after database setup",
+    "routing": "Good tool selection for different question types"
+  }
+}

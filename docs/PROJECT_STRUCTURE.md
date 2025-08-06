@@ -1,105 +1,70 @@
 # Project Structure
 
-## Overview
-
-The FinanceQA Agent project is organized into clear, logical folders for maintainability and clarity.
-
-## Directory Layout
+## Core Files You Need to Know
 
 ```
 financeAgent/
 │
-├── agent/                    # Core agent implementations
-│   ├── agent_v3_enhanced.py # Main production agent (FAISS + smart filtering)
-│   ├── agent_v3_fullcontext.py # Simple full-context approach
-│   ├── agent_v2_final.py    # Previous FAISS version
-│   ├── agent_v2.py          # Earlier iteration
-│   ├── agent.py             # Original implementation
-│   ├── build_kb.py          # Knowledge base builder
-│   └── build_knowledge_base.py # Alternative KB builder
-│
-├── test/                    # Test suites and debugging
-│   ├── evaluate.py          # Main evaluation script
-│   ├── test_v3_local.py    # Local testing without Modal
-│   ├── test_parallel_v2.py # Parallel evaluation
-│   ├── test_sequential_v2.py # Sequential evaluation
-│   ├── test_v3_fullcontext.py # Full context testing
-│   └── debug_*.py          # Various debugging scripts
-│
-├── docs/                    # Documentation
-│   ├── PRD.md              # Product requirements & roadmap
-│   ├── CURRENT_VERSION.md  # v3 release notes
-│   ├── MODAL_DEPLOYMENT.md # Modal deployment guide
-│   └── PROJECT_STRUCTURE.md # This file
-│
-├── data/                    # Financial documents
-│   ├── costco10k.txt       # Costco 10-K filing
-│   ├── cost-20240901.html  # HTML version
-│   └── parse_html.py       # HTML parser utility
-│
-├── dump/                    # Logs, results, experiments
-│   ├── evaluation_results.md # Performance metrics
-│   ├── v2_agentic_results.md # v2 test results
-│   ├── context_window_analysis.md # Token usage analysis
-│   └── *.py                # Experimental scripts
-│
-├── zeroentropy/            # Optional ZeroEntropy integration (gitignored)
-│   └── [Experimental features]
-│
-└── [Root Files]
-    ├── README.md           # Main documentation
-    ├── requirements.txt    # Python dependencies
-    ├── .env               # API keys (gitignored)
-    ├── .gitignore         # Git exclusions
-    ├── load_env.sh        # Environment loader
-    └── activate.sh        # Virtual env activation
+├── agent/main_v4.py           ⭐ The main agent (deploy this!)
+├── data/create_financial_db.py    📊 Creates the SQL database  
+├── agent/setup_narrative_kb.py    📚 Builds the search index
+└── test/evaluate_v4.py            ✅ Tests accuracy
 ```
 
-## Key Files
+## Quick Reference
 
-### Production Agent
-- **`agent/agent_v3_enhanced.py`** - The main agent to deploy
+### To Add Features
+- **New financial metric?** → Edit `data/create_financial_db.py`
+- **New math function?** → Edit calculator in `agent/main_v4.py`  
+- **New document?** → Add to `data/costco_narrative.txt` and rebuild
 
-### Testing
-- **`test/evaluate.py`** - Run full FinanceQA benchmark
-- **`test/test_v3_local.py`** - Test locally without Modal
+### To Test
+- **Test everything:** `modal run test/evaluate_v4.py`
+- **Test calculator:** `python test/test_calculator_simple.py`
+- **Test one question:** `modal run agent/main_v4.py --question "..."`
 
-### Documentation
-- **`README.md`** - User-facing documentation
-- **`docs/PRD.md`** - Product requirements and roadmap
-- **`docs/CURRENT_VERSION.md`** - v3 features and changes
+### Key Data Files
+- `data/costco_financial_data.db` - All the numbers (revenue, profit, etc.)
+- `data/costco_narrative.txt` - All the text (risks, strategy, etc.)
 
-### Configuration
-- **`.env`** - API keys (create from template)
-- **`requirements.txt`** - Python dependencies
+## Full Structure
 
-## Development Workflow
-
-1. **Local Development**: Work in `agent/` folder
-2. **Testing**: Use scripts in `test/` folder
-3. **Documentation**: Update files in `docs/`
-4. **Results**: Store outputs in `dump/`
-5. **Data**: Keep documents in `data/`
-
-## Deployment
-
-```bash
-# Deploy the main agent
-modal deploy agent/agent_v3_enhanced.py
-
-# Run evaluation
-modal run test/evaluate.py
-
-# Test locally
-python test/test_v3_local.py
+```
+financeAgent/
+├── README.md                  # Quick start guide
+├── requirements.txt           # Python packages needed
+├── .env                      # Your OpenAI key (create this)
+│
+├── agent/                    # The brains
+│   ├── main_v4.py           # Current three-tool agent ⭐
+│   ├── setup_narrative_kb.py # Builds FAISS search index
+│   └── archive/             # Old versions (ignore)
+│
+├── data/                     # The knowledge  
+│   ├── create_financial_db.py    # Script to build SQL database
+│   ├── costco_financial_data.db  # SQLite with all metrics
+│   ├── costco_narrative.txt      # Text from 10-K filing
+│   └── costco_10k_full.txt       # Original document
+│
+├── test/                     # Quality checks
+│   ├── evaluate_v4.py       # Full accuracy test
+│   ├── test_calculator_simple.py # Calculator unit tests
+│   └── benchmark_real.py    # Real-world questions
+│
+├── docs/                     # How it all works
+│   ├── README.md           # Complete user guide  
+│   ├── ARCHITECTURE.md     # Technical deep dive
+│   └── PRD.md             # The journey from 46% to 90%
+│
+└── dump/                     # Logs and experiments
+    └── (various test results and experiments)
 ```
 
-## Clean Code Principles
+## Workflow
 
-- No files in root except essential configs
-- Clear folder names indicating purpose
-- Experimental features isolated (zeroentropy/)
-- Logs and results separated (dump/)
-- Documentation centralized (docs/)
+1. **Setup**: Run database and index builders
+2. **Deploy**: `modal deploy agent/main_v4.py`
+3. **Test**: Run evaluation scripts
+4. **Iterate**: Add features, rebuild, test again
 
-This structure ensures the project remains maintainable and professional as it grows.
+That's it! The beauty is in the simplicity. 🎯
