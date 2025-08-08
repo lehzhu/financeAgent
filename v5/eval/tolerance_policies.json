@@ -1,0 +1,13 @@
+{
+  "default": {
+    "numeric": {
+      "absolute": "0.01",
+      "relative": "0.001"
+    },
+    "percent": {
+      "absolute": "0.05",
+      "relative": "0.001"
+    }
+  }
+}
+
