@@ -94,82 +94,107 @@ Choose the MOST appropriate tool. Respond with ONLY the tool name."""
     
     # 2. Execute the selected tool
     if tool_choice == "structured_data_lookup":
-        # Query structured financial data
+        # Query structured financial data with more robust matching and tracing
         try:
             # Extract key information from the question
             question_lower = question.lower()
-            
-            # Common financial metrics mapping
+
+            # Expanded financial metrics mapping with canonical DB items
             metric_mapping = {
-                'revenue': ['total revenue', 'net sales', 'revenue'],
-                'gross profit': ['gross profit', 'gross margin'],
+                'total revenue': ['total revenue', 'net sales', 'revenue', 'sales'],
+                'gross profit': ['gross profit'],
                 'net income': ['net income', 'net earnings', 'profit'],
-                'operating income': ['operating income', 'operating profit'],
-                'eps': ['earnings per share', 'eps'],
+                'operating income': ['operating income', 'operating profit', 'ebit'],
+                'earnings per share': ['earnings per share', 'eps', 'diluted eps', 'basic eps'],
                 'total assets': ['total assets', 'assets'],
                 'total liabilities': ['total liabilities', 'liabilities'],
                 'stockholders equity': ['stockholders equity', 'equity', 'shareholders equity'],
-                'cash': ['cash and cash equivalents', 'cash'],
-                'inventory': ['merchandise inventories', 'inventory'],
+                'cash and cash equivalents': ['cash and cash equivalents', 'cash'],
+                'merchandise inventories': ['merchandise inventories', 'inventory'],
+                'membership fee revenue': ['membership fee revenue', 'membership revenue']
             }
-            
-            # Extract metric
-            metric = None
-            for key, patterns in metric_mapping.items():
-                for pattern in patterns:
-                    if pattern in question_lower:
-                        metric = key
-                        break
-                if metric:
+
+            # Resolve canonical item and list of patterns
+            canonical_item = None
+            like_patterns = []
+            for canon, patterns in metric_mapping.items():
+                if any(pat in question_lower for pat in patterns):
+                    canonical_item = canon
+                    like_patterns = patterns
                     break
-            
-            # Extract year
+
+            # Extract year (robust: prefer 20xx; if "year end 2024" also matches)
             year = None
-            year_match = re.search(r'20\d{2}', question)
+            year_match = re.search(r'(?:20)\d{2}', question)
             if year_match:
                 year = int(year_match.group())
-            
+
             # Connect to database
             conn = sqlite3.connect("/data/costco_financial_data.db")
             cursor = conn.cursor()
-            
-            # Build and execute query
-            base_query = "SELECT item, fiscal_year, value, unit FROM financial_data"
-            conditions = []
-            
-            if metric:
-                conditions.append(f"LOWER(item) LIKE '%{metric.lower()}%'")
-            
+
+            # Prefer view with actual_value scaling if present
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='view' AND name='financial_summary'")
+            use_view = cursor.fetchone() is not None
+            table = 'financial_summary' if use_view else 'financial_data'
+            cols = 'item, fiscal_year, ' + ('actual_value, unit' if use_view else 'value, unit')
+
+            # Build dynamic WHERE
+            wheres = []
+            params = []
+            if like_patterns:
+                # OR over all LIKE patterns
+                like_clause = "(" + " OR ".join(["LOWER(item) LIKE ?" for _ in like_patterns]) + ")"
+                wheres.append(like_clause)
+                params.extend([f"%{p}%" for p in like_patterns])
             if year:
-                conditions.append(f"fiscal_year = {year}")
-            
-            if conditions:
-                base_query += " WHERE " + " AND ".join(conditions)
-            
-            base_query += " ORDER BY fiscal_year DESC LIMIT 10"
-            print(f"Executing SQL: {base_query}")
-            cursor.execute(base_query)
-            
+                wheres.append("fiscal_year = ?")
+                params.append(year)
+
+            sql = f"SELECT {cols} FROM {table}"
+            if wheres:
+                sql += " WHERE " + " AND ".join(wheres)
+            sql += " ORDER BY fiscal_year DESC LIMIT 10"
+
+            print(f"[structured_data_lookup] SQL: {sql}")
+            print(f"[structured_data_lookup] params: {params}")
+            cursor.execute(sql, params)
             results = cursor.fetchall()
+
+            # If nothing found and we had a canonical item, retry without year, or with the canonical name exact
+            if not results and canonical_item:
+                retry_sql = f"SELECT {cols} FROM {table} WHERE LOWER(item) = ? ORDER BY fiscal_year DESC LIMIT 3"
+                print(f"[structured_data_lookup] retry SQL: {retry_sql}")
+                cursor.execute(retry_sql, [canonical_item])
+                results = cursor.fetchall()
+
+            # If still nothing and we had patterns, try any single pattern (broader)
+            if not results and like_patterns:
+                broad_sql = f"SELECT {cols} FROM {table} WHERE " + " OR ".join(["LOWER(item) LIKE ?" for _ in like_patterns]) + " ORDER BY fiscal_year DESC LIMIT 3"
+                print(f"[structured_data_lookup] broad SQL: {broad_sql}")
+                cursor.execute(broad_sql, [f"%{p}%" for p in like_patterns])
+                results = cursor.fetchall()
+
             conn.close()
-            
+
             # Format results
             if results:
                 formatted = []
-                for item, year, value, unit in results:
+                for item, fy, val, unit in results:
                     if unit == 'millions':
-                        formatted.append(f"{item} ({year}): ${value:,.0f} million")
+                        formatted.append(f"{item} ({fy}): ${val/1_000_000:,.0f} million" if use_view else f"{item} ({fy}): ${val:,.0f} million")
                     elif unit == 'percent':
-                        formatted.append(f"{item} ({year}): {value}%")
+                        formatted.append(f"{item} ({fy}): {val}%")
                     elif unit == 'dollars':
-                        formatted.append(f"{item} ({year}): ${value:.2f}")
+                        formatted.append(f"{item} ({fy}): ${val:.2f}")
+                    elif unit == 'count':
+                        formatted.append(f"{item} ({fy}): {int(val)}")
                     else:
-                        formatted.append(f"{item} ({year}): {value} {unit}")
-                
-                tool_result = "\\n".join(formatted)
+                        formatted.append(f"{item} ({fy}): {val} {unit}")
+                tool_result = "\n".join(formatted)
             else:
                 tool_result = "No data found for the specified query."
-                
+
         except Exception as e:
             tool_result = f"Error querying structured data: {str(e)}"
         
