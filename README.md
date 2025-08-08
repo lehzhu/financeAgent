@@ -1,3 +1,52 @@
+# FinanceAgent v5
+
+A from-scratch, test-driven rewrite focused on answering real finance questions with transparency.
+
+What v5 is
+- Deterministic where possible (calculator, database lookups, calculated metrics)
+- Transparent evaluation (unified test runner with curated FinanceQA-style questions)
+- Incremental phases so we always know what works and what doesn’t
+
+Current capabilities
+- Phase 1: Calculator (100%)
+  - Basic arithmetic, percentages, growth rates, ratios
+- Phase 2: Costco Financial Data (100%)
+  - Total revenue, net sales, net income, operating income (from SQLite DB)
+- Phase 3: Calculation + Data (100%)
+  - Profit margin (Net Income / Total Revenue * 100)
+  - Operating margin (Operating Income / Total Revenue * 100)
+  - Revenue growth (YoY)
+- Phase 4: Narrative (Not implemented yet)
+  - Business strategy, risk factors, conceptual questions
+
+Repository layout (v5)
+- v5/main.py                Minimal router (Costco → data/metrics, else calculator)
+- v5/phase1_calculator.py   Deterministic AST-based calculator
+- v5/phase2_costco_data.py  SQLite-backed Costco data agent (no hard-coded paths)
+- v5/phase3_metrics.py      Calculated metrics using Phase 2 data
+- v5/curated_tests.py       Human-readable test questions and expectations
+- v5/test_all.py            Unified transparent test runner
+
+Data
+- Uses data/costco_financial_data.db
+  - Path resolution order: explicit db_path arg > FINANCEAGENT_DB env var > default relative path
+
+Run it
+- Ask a question
+  - python3 v5/main.py --question "What was Costco's total revenue in 2024?"
+- Run all tests
+  - python3 v5/test_all.py
+
+Design principles
+- Keep business logic simple and explicit
+- Prefer DB and math over LLMs for structured questions
+- Add LLMs only where they add value (Phase 4 narrative, routing fallbacks)
+
+What’s next
+- Phase 4 (Narrative): retrieval + LLM summarization with citations
+- Expand schema and coverage (additional metrics/years)
+- Optional LLM router/normalizer behind environment flags
+
 # FinanceQA Agent
 
 A multi-agent system for answering financial questions using specialized tools. Currently achieving 50% accuracy on the FinanceQA dataset (v4), up from 11% with base GPT-4o.
