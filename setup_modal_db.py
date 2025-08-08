@@ -6,24 +6,19 @@ import modal
 import os
 import shutil
 
-app = modal.App("setup-finance-db")
+app = modal.App("setup-finance-db",
+    image=(modal.Image.debian_slim()
+           .pip_install("sqlite-utils")
+           .add_local_dir(os.path.dirname(__file__), remote_path="/root/app")  # repo root
+          )
+)
 
 # Create or get the volume
 volume = modal.Volume.from_name("finance-agent-storage", create_if_missing=True)
 
 @app.function(
     volumes={"/data": volume},
-    mounts=[
-        modal.Mount.from_local_file(
-            local_path="/Users/zhu/documents/financeAgent/data/costco_financial_data.db",
-            remote_path="/tmp/costco_financial_data.db"
-        ),
-        modal.Mount.from_local_dir(
-            local_path="/Users/zhu/documents/financeAgent/data",
-            remote_path="/tmp/data",
-            condition=lambda path: path.endswith(('.txt', '.index', '.pkl'))
-        )
-    ]
+    timeout=600
 )
 def setup_database():
     """Upload the database and related files to Modal volume."""
@@ -31,11 +26,20 @@ def setup_database():
     
     print("Setting up database in Modal volume...")
     
-    # Copy database to volume
-    if os.path.exists("/tmp/costco_financial_data.db"):
-        shutil.copy("/tmp/costco_financial_data.db", "/data/costco_financial_data.db")
+    # Build DB from ingestion script using repo files under /root/app/data
+    import subprocess
+    py = "/usr/local/bin/python" if os.path.exists("/usr/local/bin/python") else "python3"
+    ingester = "/root/app/data/ingest_costco_10k.py"
+    assert os.path.exists(ingester), "ingest script missing in image"
+    print("Running ingestion...")
+    subprocess.check_call([py, ingester])
+
+    # Copy built DB into Modal volume
+    built_db = "/root/app/data/costco_financial_data.db"
+    if os.path.exists(built_db):
+        shutil.copy(built_db, "/data/costco_financial_data.db")
         print("✓ Database copied to /data/costco_financial_data.db")
-        
+
         # Verify database
         conn = sqlite3.connect("/data/costco_financial_data.db")
         cursor = conn.cursor()
