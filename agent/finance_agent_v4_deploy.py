@@ -185,9 +185,9 @@ Choose the MOST appropriate tool. Respond with ONLY the tool name."""
             tool_result = f"Error searching narrative content: {str(e)}"
         
     elif tool_choice == "python_calculator":
-        # Extract and perform calculation
+        # Extract and perform calculation (LLM extracts expression; local eval for safety)
         calc_prompt = f"""Extract the mathematical calculation from this question. Think step-by-step.
-    
+
 Question: {question}
 
 Think step-by-step:
@@ -210,108 +210,19 @@ Examples:
 - "Calculate growth rate from $100M to $150M" → "((150 - 100) / 100) * 100"
 
 Expression:"""
-        
+
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": calc_prompt}],
             temperature=0
         )
-        
+
         calc_expr = response.choices[0].message.content.strip()
-        
+
         if calc_expr != "NO_CALCULATION":
-            # Safe evaluation using AST
-            try:
-                # Define allowed operations
-                allowed_operations = {
-                    ast.Add: operator.add,
-                    ast.Sub: operator.sub,
-                    ast.Mult: operator.mul,
-                    ast.Div: operator.truediv,
-                    ast.FloorDiv: operator.floordiv,
-                    ast.Mod: operator.mod,
-                    ast.Pow: operator.pow,
-                    ast.USub: operator.neg,
-                    ast.UAdd: operator.pos,
-                }
-                
-                # Define allowed functions
-                allowed_functions = {
-                    'abs': abs,
-                    'round': round,
-                    'min': min,
-                    'max': max,
-                    'sum': sum,
-                    'sqrt': math.sqrt,
-                    'log': math.log,
-                    'log10': math.log10,
-                    'exp': math.exp,
-                    'sin': math.sin,
-                    'cos': math.cos,
-                    'tan': math.tan,
-                    'ceil': math.ceil,
-                    'floor': math.floor,
-                }
-                
-                # Define allowed constants
-                allowed_names = {
-                    'pi': math.pi,
-                    'e': math.e,
-                }
-                
-                def safe_eval(node):
-                    """Recursively evaluate AST nodes safely."""
-                    if isinstance(node, ast.Constant):
-                        return node.value
-                    elif isinstance(node, ast.Num):
-                        return node.n
-                    elif isinstance(node, ast.BinOp):
-                        if type(node.op) in allowed_operations:
-                            left = safe_eval(node.left)
-                            right = safe_eval(node.right)
-                            return allowed_operations[type(node.op)](left, right)
-                        else:
-                            raise ValueError(f"Operation {type(node.op).__name__} not allowed")
-                    elif isinstance(node, ast.UnaryOp):
-                        if type(node.op) in allowed_operations:
-                            operand = safe_eval(node.operand)
-                            return allowed_operations[type(node.op)](operand)
-                        else:
-                            raise ValueError(f"Unary operation {type(node.op).__name__} not allowed")
-                    elif isinstance(node, ast.Call):
-                        if isinstance(node.func, ast.Name) and node.func.id in allowed_functions:
-                            args = [safe_eval(arg) for arg in node.args]
-                            return allowed_functions[node.func.id](*args)
-                        else:
-                            func_name = node.func.id if isinstance(node.func, ast.Name) else "unknown"
-                            raise ValueError(f"Function '{func_name}' not allowed")
-                    elif isinstance(node, ast.Name):
-                        if node.id in allowed_names:
-                            return allowed_names[node.id]
-                        else:
-                            raise ValueError(f"Name '{node.id}' not allowed")
-                    elif isinstance(node, ast.List):
-                        return [safe_eval(elem) for elem in node.elts]
-                    elif isinstance(node, ast.Tuple):
-                        return tuple(safe_eval(elem) for elem in node.elts)
-                    else:
-                        raise ValueError(f"AST node type {type(node).__name__} not allowed")
-                
-                tree = ast.parse(calc_expr, mode='eval')
-                result = safe_eval(tree.body)
-                
-                if isinstance(result, float):
-                    if result == int(result):
-                        calc_result = str(int(result))
-                    else:
-                        calc_result = f"{result:.10g}"
-                else:
-                    calc_result = str(result)
-                    
-                tool_result = f"Expression: {calc_expr}\\nResult: {calc_result}"
-                
-            except Exception as e:
-                tool_result = f"Calculation error: {str(e)}"
+            from agent.utils.calculator import evaluate_expression
+            calc_result = evaluate_expression(calc_expr)
+            tool_result = f"Expression: {calc_expr}\\nResult: {calc_result}"
         else:
             tool_result = "No calculation could be extracted from the question"
     
