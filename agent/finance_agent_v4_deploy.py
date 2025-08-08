@@ -8,11 +8,16 @@ Finance Agent v4: Three-Tool Architecture
 import modal
 
 # Define the Modal app
+import os
 app = modal.App(
     "finance-agent-v4-new",
-    image=modal.Image.debian_slim().pip_install(
-        "langchain", "langchain-community", "langchain-openai",
-        "faiss-cpu", "openai", "tiktoken"
+    image=(
+        modal.Image.debian_slim()
+        .pip_install(
+            "langchain", "langchain-community", "langchain-openai",
+            "faiss-cpu", "openai", "tiktoken"
+        )
+        .add_local_dir(os.path.dirname(os.path.dirname(__file__)), remote_path="/root/app")
     ),
     secrets=[modal.Secret.from_name("openai-key-1")]
 )
@@ -38,6 +43,8 @@ def process_question_v4(question: str) -> str:
     """
     # Import inside Modal environment
     import os
+    import sys
+    sys.path.insert(0, "/root/app")
     import sqlite3
     from openai import OpenAI
     from langchain_community.vectorstores import FAISS
