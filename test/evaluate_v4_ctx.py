@@ -42,7 +42,7 @@ def answers_match(expected, got, tolerance=0.02):
 
 
 @app.local_entrypoint()
-def main(test_size: int = 10, offset: int = 0):
+def main(test_size: int = 10, offset: int = 0, dump_path: str = "dump/eval_v4_ctx_results.json"):
     ds = load_dataset("AfterQuery/FinanceQA", split="test")
     n = min(test_size, len(ds) - offset)
 
@@ -56,6 +56,7 @@ def main(test_size: int = 10, offset: int = 0):
     print(f"Testing {n} rows starting at offset {offset}")
     print("="*60)
 
+    items = []
     for i in range(offset, offset + n):
         row = ds[i]
         q = row.get("question", "")
@@ -73,6 +74,8 @@ def main(test_size: int = 10, offset: int = 0):
         if ok:
             correct += 1
 
+        items.append({"id": i, "question": q, "expected": exp, "answer": ans, "ok": ok})
+
         print(f"[#{i}] Q: {q[:100]}...")
         print(f"Expected: {exp}")
         print(f"Got: {ans[:200]}..." if len(ans) > 200 else f"Got: {ans}")
@@ -82,4 +85,11 @@ def main(test_size: int = 10, offset: int = 0):
     print("="*60)
     print(f"Final Accuracy: {correct}/{total} = {correct/total*100:.1f}%")
     print("="*60)
+
+    # Write dump
+    import os
+    os.makedirs("dump", exist_ok=True)
+    with open(dump_path, "w") as f:
+        json.dump({"total": total, "correct": correct, "accuracy": correct/total if total else 0.0, "items": items}, f, indent=2)
+    print(f"Wrote results to {dump_path}")
 
