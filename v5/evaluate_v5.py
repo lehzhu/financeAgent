@@ -3,12 +3,13 @@ import os
 import json
 from typing import Optional
 
-from modal import Image, Secret, App, Volume, Mount
+from modal import Image, Secret, App, Volume
 
 # Build image with dependencies
 image = (
     Image.debian_slim()
     .pip_install_from_requirements("requirements.txt")
+    .add_local_dir(".", remote_path="/root/app")
 )
 
 # Modal volume to persist eval artifacts (optional)
@@ -76,7 +77,6 @@ def _load_hf_dataset(name: str, split: Optional[str] = None):
     cpu=1.0,
     memory= "2Gi",
     volumes={"/root/results": results_volume},
-    mounts=[Mount.from_local_dir(".", remote_path="/root/app")],
     timeout=60*30,
 )
 def run_eval(dataset_path: str = "data/financeqa.json", limit: int = 0, out_path: str = "/root/results/results.json"):

@@ -6,6 +6,16 @@ getcontext().prec = 50
 class MathError(Exception):
     pass
 
+# Simple helpers
+
+def _safe_div(n: Decimal, d: Decimal) -> Decimal:
+    try:
+        if d == 0:
+            return Decimal("0")
+        return n / d
+    except Exception:
+        return Decimal("0")
+
 # Simple formula registry
 FORMULAS = {
     "EBITDA": {
@@ -18,11 +28,11 @@ FORMULAS = {
     },
     "OPERATING_MARGIN": {
         "requires": ["OPERATING_INCOME", "REVENUE"],
-        "compute": lambda inp: (inp["OPERATING_INCOME"] / inp["REVENUE"]) * Decimal("100")
+        "compute": lambda inp: _safe_div(inp["OPERATING_INCOME"], inp["REVENUE"]) * Decimal("100")
     },
     "GROSS_MARGIN": {
         "requires": ["GROSS_PROFIT", "REVENUE"],
-        "compute": lambda inp: (inp["GROSS_PROFIT"] / inp["REVENUE"]) * Decimal("100")
+        "compute": lambda inp: _safe_div(inp["GROSS_PROFIT"], inp["REVENUE"]) * Decimal("100")
     },
     "GROSS_PROFIT": {
         "requires": ["GROSS_PROFIT"],

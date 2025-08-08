@@ -1,7 +1,0 @@
-[
-  {"id": "ex1", "question": "Compute EBITDA given operating income, depreciation, amortization.",
-   "context": {"inputs": {"OPERATING_INCOME": "100", "DEPRECIATION": "10", "AMORTIZATION": "5"}} ,
-   "final_answer": {"type": "number", "value": "115.00"}
-  }
-]
-
