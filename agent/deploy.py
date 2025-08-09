@@ -144,13 +144,20 @@ def process_question_v4_ctx(question: str, context: str = "") -> str:
             return val * Decimal('1000')
         return val
 
-    def _find_line_values(ctx_lines, label_regexes, year=None, lookahead_lines=3):
+    def _in_ops_section(ctx_lines, idx, back=10):
+        start = max(0, idx - back)
+        window = " ".join(l.lower() for l in ctx_lines[start:idx+1])
+        return ("consolidated statements of operations" in window) or ("statements of operations" in window)
+
+    def _find_line_values(ctx_lines, label_regexes, year=None, lookahead_lines=3, require_ops_section=False):
         for i, line in enumerate(ctx_lines):
             lower = line.lower()
             year_ok = True
             if year:
                 year_ok = (str(year) in lower) or any(str(year) in (ctx_lines[j].lower() if j < len(ctx_lines) else "") for j in range(i+1, i+1+lookahead_lines))
             if not year_ok:
+                continue
+            if require_ops_section and not _in_ops_section(ctx_lines, i, back=10):
                 continue
             for rgx in label_regexes:
                 if re.search(rgx, lower, flags=re.IGNORECASE):
@@ -170,27 +177,36 @@ def process_question_v4_ctx(question: str, context: str = "") -> str:
     if ctx:
         lines = [ln.strip() for ln in ctx.splitlines() if ln.strip()]
         if 'operating profit margin' in qlow or 'operating margin' in qlow:
-            rev, _ = _find_line_values(lines, [r"total\s+revenue", r"net\s+sales"], year=2024)
-            opi, _ = _find_line_values(lines, [r"operating\s+income", r"operating\s+profit"], year=2024)
+            rev, _ = _find_line_values(lines, [r"total\s+revenue", r"net\s+sales"], year=2024, require_ops_section=True)
+            opi, _ = _find_line_values(lines, [r"operating\s+income", r"operating\s+profit"], year=2024, require_ops_section=True)
             if rev and opi and rev != 0:
                 margin = _quantize((opi / rev) * Decimal('100'))
                 if 'compared to 2023' in qlow or 'greater in 2024' in qlow or '2023' in qlow:
-                    rev2, _ = _find_line_values(lines, [r"total\s+revenue", r"net\s+sales"], year=2023)
-                    opi2, _ = _find_line_values(lines, [r"operating\s+income", r"operating\s+profit"], year=2023)
+                    rev2, _ = _find_line_values(lines, [r"total\s+revenue", r"net\s+sales"], year=2023, require_ops_section=True)
+                    opi2, _ = _find_line_values(lines, [r"operating\s+income", r"operating\s+profit"], year=2023, require_ops_section=True)
                     if rev2 and opi2 and rev2 != 0:
                         m2 = _quantize((opi2 / rev2) * Decimal('100'))
                         yn = 'Yes' if margin > m2 else 'No'
                         return f"{yn}. 2024 Operating Margin: {margin}% vs 2023: {m2}%"
                 return f"Operating Profit Margin (2024): {margin}%\n{{\"answer\": {str(margin)}, \"unit\": \"percent\"}}"
         if 'ebitda margin' in qlow or ('ebitda' in qlow and 'margin' in qlow):
-            rev, _ = _find_line_values(lines, [r"total\s+revenue", r"net\s+sales"], year=2024)
-            e_labels = [r"adjusted\s+ebitda", r"ebitda"] if 'adjusted' in qlow else [r"ebitda", r"ebit\s*\+\s*depreciation", r"operating\s+income\s*\+\s*depreciation"]
-            ebitda, _ = _find_line_values(lines, e_labels, year=2024)
+            rev, _ = _find_line_values(lines, [r"total\s+revenue", r"net\s+sales"], year=2024, require_ops_section=True)
+            # Try direct labels first
+            if 'adjusted' in qlow:
+                ebitda, _ = _find_line_values(lines, [r"adjusted\s+ebitda"], year=2024, require_ops_section=True)
+            else:
+                ebitda, _ = _find_line_values(lines, [r"ebitda"], year=2024, require_ops_section=True)
+            # Fallback: compute from OI + D&A if needed
+            if (not ebitda) and rev:
+                oi, _ = _find_line_values(lines, [r"operating\s+income", r"operating\s+profit"], year=2024, require_ops_section=True)
+                da, _ = _find_line_values(lines, [r"depreciation\s+and\s+amortization"], year=2024, lookahead_lines=5, require_ops_section=True)
+                if oi is not None and da is not None:
+                    ebitda = oi + da
             if rev and ebitda and rev != 0:
                 margin = _quantize((ebitda / rev) * Decimal('100'))
                 return f"EBITDA Margin (2024): {margin}%\n{{\"answer\": {str(margin)}, \"unit\": \"percent\"}}"
         if 'operating profit' in qlow and 'margin' not in qlow:
-            opi, _ = _find_line_values(lines, [r"operating\s+income", r"operating\s+profit"], year=2024)
+            opi, _ = _find_line_values(lines, [r"operating\s+income", r"operating\s+profit"], year=2024, require_ops_section=True)
             if opi is not None:
                 val = _quantize(opi)
                 return f"Operating Profit (2024): ${val} million\n{{\"answer\": {str(val)}, \"unit\": \"millions of USD\"}}"
@@ -217,5 +233,15 @@ def process_question_v4_local(question: str) -> str:
     kb = FAISS.load_local("/data/narrative_kb_index", embeddings, allow_dangerous_deserialization=True)
     retriever = kb.as_retriever(search_kwargs={"k": 10})
     docs = retriever.get_relevant_documents(question)
+    # Prefer chunks containing the target year to reduce noise
+    year = None
+    import re as _re
+    m = _re.search(r'(20\d{2})', question)
+    if m:
+        year = m.group(1)
+    if year and docs:
+        filtered = [d for d in docs if year in d.page_content]
+        if filtered:
+            docs = filtered
     ctx = "\n---\n".join([d.page_content for d in docs]) if docs else ""
     return process_question_v4_ctx.remote(question, ctx)
