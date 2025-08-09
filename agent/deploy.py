@@ -231,17 +231,9 @@ def process_question_v4_local(question: str) -> str:
 
     embeddings = OpenAIEmbeddings()
     kb = FAISS.load_local("/data/narrative_kb_index", embeddings, allow_dangerous_deserialization=True)
-    retriever = kb.as_retriever(search_kwargs={"k": 10})
+    # Heuristic toggle: reduce k to 5 and disable strict year filtering
+    retriever = kb.as_retriever(search_kwargs={"k": 5})
     docs = retriever.get_relevant_documents(question)
-    # Prefer chunks containing the target year to reduce noise
-    year = None
-    import re as _re
-    m = _re.search(r'(20\d{2})', question)
-    if m:
-        year = m.group(1)
-    if year and docs:
-        filtered = [d for d in docs if year in d.page_content]
-        if filtered:
-            docs = filtered
+    # Note: previously preferred chunks containing the target year; disabled for recall
     ctx = "\n---\n".join([d.page_content for d in docs]) if docs else ""
     return process_question_v4_ctx.remote(question, ctx)
