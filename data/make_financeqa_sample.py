@@ -14,10 +14,11 @@ from typing import Dict, List
 
 from datasets import load_dataset
 
-TARGET_SIZE = 50
-MIN_PER_TYPE = 10  # try to keep at least 10 of each if available
+import argparse
+
+TARGET_SIZE_DEFAULT = 50
+MIN_PER_TYPE_DEFAULT = 10  # try to keep at least 10 of each if available
 DATASET_NAME = "AfterQuery/FinanceQA"
-OUT_PATH = os.path.join("data", "financeqa_50.jsonl")
 
 
 def save_jsonl(path: str, records: List[Dict]):
@@ -28,6 +29,17 @@ def save_jsonl(path: str, records: List[Dict]):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--size", type=int, default=TARGET_SIZE_DEFAULT, help="target sample size (default 50)")
+    parser.add_argument("--min-per-type", type=int, default=MIN_PER_TYPE_DEFAULT, help="minimum per question_type if available")
+    parser.add_argument("--out", default=None, help="output JSONL path (default data/financeqa_<size>.jsonl)")
+    args = parser.parse_args()
+
+    target_size = args.size
+    min_per_type = args.min_per_type
+
+    out_path = args.out or os.path.join("data", f"financeqa_{target_size}.jsonl")
+
     ds = load_dataset(DATASET_NAME)
     split = "test" if "test" in ds else next(iter(ds.keys()))
     dset = ds[split]
@@ -38,17 +50,17 @@ def main():
         qtype = (ex.get("question_type") or "unknown").lower()
         buckets[qtype].append(i)
 
-    # First pass: take up to MIN_PER_TYPE from each bucket
+    # First pass: take up to min_per_type from each bucket
     chosen_idx: List[int] = []
     for qtype, idxs in buckets.items():
-        take = min(MIN_PER_TYPE, len(idxs))
+        take = min(min_per_type, len(idxs))
         chosen_idx.extend(idxs[:take])
 
-    # Second pass: fill remaining up to TARGET_SIZE round-robin over buckets
-    if len(chosen_idx) < TARGET_SIZE:
-        remaining = TARGET_SIZE - len(chosen_idx)
+    # Second pass: fill remaining up to target_size round-robin over buckets
+    if len(chosen_idx) < target_size:
+        remaining = target_size - len(chosen_idx)
         # Build an iterator across residual slices
-        residuals = {k: buckets[k][MIN_PER_TYPE:] for k in buckets}
+        residuals = {k: buckets[k][min_per_type:] for k in buckets}
         # Flatten in round-robin order for fairness
         order = sorted(residuals.keys())
         ptrs = {k: 0 for k in order}
@@ -71,7 +83,7 @@ def main():
                 break
 
     # If still not enough (dataset smaller than target), just cap
-    chosen_idx = chosen_idx[: min(TARGET_SIZE, len(dset))]
+    chosen_idx = chosen_idx[: min(target_size, len(dset))]
 
     subset = dset.select(chosen_idx)
 
@@ -88,7 +100,7 @@ def main():
         ) if k in ex}
         records.append(rec)
 
-    save_jsonl(OUT_PATH, records)
+    save_jsonl(out_path, records)
 
     # Print brief summary
     by_type: Dict[str, int] = defaultdict(int)
@@ -99,7 +111,7 @@ def main():
         "split": split,
         "saved": len(records),
         "by_question_type": by_type,
-        "path": OUT_PATH,
+        "path": out_path,
     }, indent=2))
 
 

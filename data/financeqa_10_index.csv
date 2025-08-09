@@ -1,0 +1,11 @@
+id,question_type,question,answer,context_path,context_link
+row_0,basic,What is Gross Profit in the year ending 2024?,"$32,095 (in millions)",data/contexts_10/row_0.txt,
+row_1,basic,What is unadjusted EBITDA for the year ending in 2024?,"$11,522 (in millions)",data/contexts_10/row_1.txt,
+row_2,assumption,What is adjusted EBITDA for the year ending in 2024?,"$11,969 (in millions)",data/contexts_10/row_2.txt,
+row_3,assumption,What is adjusted EBIT for the year ending in 2024?,"$9,396 (in millions)",data/contexts_10/row_3.txt,
+row_4,conceptual,"Company X trades at $15 per share and has 80 shares outstanding, with $80 in net income. Company Y trades at $30 per share, has 15 shares outstanding, and earns $20 in net income. Company X acquires Company Y at no premium, paying 60% in new stock and 40% in cash. After the transaction, what is the percentage change in Company X's EPS?",2%,data/contexts_10/row_4.txt,
+row_5,conceptual,"You deposit $80 right now. After three years, your annual IRR is 10%. How much will your deposit be worth at the end of those three years?",$106.48,data/contexts_10/row_5.txt,
+row_6,assumption,Compute the adjusted EBITDA Margin for 2024. ,4.70%,data/contexts_10/row_6.txt,
+row_7,basic,What is unadjusted EBIT for the year ending in 2024?,"$9,285 (in millions)",data/contexts_10/row_7.txt,
+row_8,conceptual,"Let's say you're going to receive $75 in 7 years, with a discount rate of 9%. What is its value today?",$41.06,data/contexts_10/row_8.txt,
+row_9,assumption,Determine the EV/EBITDA ratio for 2024. Make sure to adjust for EBITDA and use the market value of equity to estimate enterprise value. Make sure to hand calculated fully diluted shares outstanding. Assume the only non-operating asset is excess cash.,35.44x,data/contexts_10/row_9.txt,
