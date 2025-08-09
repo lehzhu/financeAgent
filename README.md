@@ -50,9 +50,9 @@ modal run agent/finance_agent_v4_deploy.py "What was the gross margin?"
 
 ## Documentation
 
-📖 **[How it Works](docs/README.md)** - Start here for the full guide  
-🏗️ **[Architecture](docs/ARCHITECTURE.md)** - Technical deep dive  
-📈 **[Our Journey](docs/PRD.md)** - How we went from 46% to 90%
+- Overview and version history: docs/README.md
+- Architecture (v4/v4.5): docs/ARCHITECTURE.md
+- Product/plan context: docs/PRD.md
 
 ## Performance
 
