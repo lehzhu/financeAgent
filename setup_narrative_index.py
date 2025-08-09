@@ -6,10 +6,10 @@ import modal
 
 app = modal.App(
     "setup-narrative-index",
-    image=modal.Image.debian_slim().pip_install(
+    image=(modal.Image.debian_slim().pip_install(
         "langchain", "langchain-community", "langchain-openai", 
         "faiss-cpu", "openai", "tiktoken"
-    ),
+    ).add_local_dir("/Users/zhu/Documents/financeAgent/data", remote_path="/root/app/data")),
     secrets=[modal.Secret.from_name("openai-key-1")]
 )
 
@@ -17,12 +17,6 @@ volume = modal.Volume.from_name("finance-agent-storage")
 
 @app.function(
     volumes={"/data": volume},
-    mounts=[
-        modal.Mount.from_local_file(
-            local_path="/Users/zhu/documents/financeAgent/data/costco_narrative.txt",
-            remote_path="/tmp/costco_narrative.txt"
-        )
-    ]
 )
 def build_narrative_index():
     """Build FAISS index for narrative content."""
@@ -34,17 +28,34 @@ def build_narrative_index():
     
     print("Building narrative FAISS index...")
     
-    # Load narrative text
-    loader = TextLoader("/tmp/costco_narrative.txt")
-    documents = loader.load()
-    
-    print(f"Loaded {len(documents)} documents")
-    print(f"Total characters: {len(documents[0].page_content)}")
-    
+    # Load narrative and 10-K sources
+    sources = []
+    paths = [
+        "/root/app/data/costco_10k_full.txt",
+        "/root/app/data/costco_10k_summary.txt",
+        "/root/app/data/costco_narrative.txt"
+    ]
+    for p in paths:
+        if os.path.exists(p):
+            sources.append(p)
+    if not sources:
+        raise FileNotFoundError("No 10-K sources found in /root/app/data")
+
+    documents = []
+    total_chars = 0
+    for p in sources:
+        loader = TextLoader(p)
+        docs = loader.load()
+        documents.extend(docs)
+        total_chars += sum(len(d.page_content) for d in docs)
+
+    print(f"Loaded {len(documents)} documents from {len(sources)} sources")
+    print(f"Total characters: {total_chars}")
+
     # Split into chunks
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1500,
-        chunk_overlap=300,
+        chunk_size=1800,
+        chunk_overlap=250,
         length_function=len,
         separators=["\n\n", "\n", " ", ""]
     )

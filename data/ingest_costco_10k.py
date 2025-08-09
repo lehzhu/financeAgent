@@ -20,6 +20,7 @@ EXTRACT_PATTERNS: Dict[str, List[Tuple[str, str]]] = {
     ],
     'Operating Income': [
         (r"Operating\s+Income\s*\(\$?([\d,]+)\s*million\)", 'millions'),
+        (r"Operating\s+Profit\s*\(\$?([\d,]+)\s*million\)", 'millions'),
     ],
     'Net Income': [
         (r"Net\s+Income\s*\(\$?([\d,]+)\s*million\)", 'millions'),
@@ -49,8 +50,25 @@ EXTRACT_PATTERNS: Dict[str, List[Tuple[str, str]]] = {
     'Capital Expenditures': [
         (r"Capital\s+Expenditures\s*\(\$?([\d,]+)\s*million\)", 'millions'),
     ],
+    'Operating Cash Flow': [
+        (r"Net\s+cash\s+provided\s+by\s+operating\s+activities[^\d]*\$?([\d,]+)\s*million", 'millions'),
+    ],
+    'Interest Expense': [
+        (r"Interest\s+expense[^\d]*\$?([\d,]+)\s*million", 'millions'),
+    ],
+    'Total Debt': [
+        (r"Total\s+debt[^\d]*\$?([\d,]+)\s*million", 'millions'),
+        (r"Long[-\s]*term\s+debt[^\d]*\$?([\d,]+)\s*million", 'millions'),
+    ],
+    'Operating Lease Liabilities': [
+        (r"Operating\s+lease\s+liabilities[^\d]*\$?([\d,]+)\s*million", 'millions'),
+    ],
+    'Goodwill': [
+        (r"Goodwill[^\d]*\$?([\d,]+)\s*million", 'millions'),
+    ],
     'Number of Warehouses': [
-        (r"Warehouses[^\d]*([\d,]{2,4})\b", 'count'),
+        (r"(?:As\s+of\s+[A-Za-z]+\s+\d{1,2},\s+20\d{2}.*?we\s+operated\s+)([\d]{2,4})\s+warehouses", 'count'),
+        (r"we\s+operated\s+([\d]{2,4})\s+warehouses", 'count')
     ],
 }
 
@@ -105,15 +123,34 @@ def _extract_from_text(conn: sqlite3.Connection, text: str, year: int, source: s
                 _insert_row(conn, item, year, value, unit, source, f"regex:{regex[:40]}")
 
 
+def _compute_derived(conn: sqlite3.Connection):
+    cur = conn.cursor()
+    # Derive margins if inputs exist per year
+    cur.execute("SELECT DISTINCT fiscal_year FROM financial_data")
+    years = [r[0] for r in cur.fetchall()]
+    for y in years:
+        # Gross Margin = Gross Profit / Total Revenue * 100
+        cur.execute("SELECT value, unit FROM financial_data WHERE item='Gross Profit' AND fiscal_year=?", (y,))
+        gp = cur.fetchone()
+        cur.execute("SELECT value, unit FROM financial_data WHERE item='Total Revenue' AND fiscal_year=?", (y,))
+        rev = cur.fetchone()
+        if gp and rev and gp[1] == rev[1] and rev[0] != 0:
+            margin = (gp[0] / rev[0]) * 100.0
+            _insert_row(conn, 'Gross Margin', y, margin, 'percent', 'derived', 'gross_profit/revenue')
+        # Operating Margin = Operating Income / Total Revenue * 100
+        cur.execute("SELECT value, unit FROM financial_data WHERE item='Operating Income' AND fiscal_year=?", (y,))
+        op = cur.fetchone()
+        if op and rev and op[1] == rev[1] and rev[0] != 0:
+            om = (op[0] / rev[0]) * 100.0
+            _insert_row(conn, 'Operating Margin', y, om, 'percent', 'derived', 'operating_income/revenue')
+
+
 def ingest():
     # Build DB fresh
     if os.path.exists(DB_PATH):
         os.remove(DB_PATH)
     conn = sqlite3.connect(DB_PATH)
     _load_schema(conn)
-
-    # Insert initial curated rows via old script if exists
-    # Optionally, we could import from create_financial_db.py, but we’ll rely on text extraction here
 
     # Try to detect year context from filenames or content
     years = [2024, 2023, 2022]
@@ -122,12 +159,11 @@ def ingest():
             continue
         with open(path, 'r', encoding='utf-8', errors='ignore') as f:
             txt = f.read()
-        # naive heuristic: if 2024 appears more than 2023, assign year=2024; else try others
-        assigned = None
         counts = {y: len(re.findall(str(y), txt)) for y in years}
         assigned = max(counts, key=counts.get) if counts else 2024
         _extract_from_text(conn, txt, assigned, os.path.basename(path))
 
+    _compute_derived(conn)
     _insert_aliases(conn)
     conn.commit()
 

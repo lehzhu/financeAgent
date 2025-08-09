@@ -327,68 +327,63 @@ def process_question_v4_ctx(question: str, context: str = "") -> str:
     from openai import OpenAI
     import textwrap
 
-    def _extract_value_millions(ctx: str, label_patterns):
-        """Return first matched value in millions (Decimal) for any of the label patterns."""
-        txt = ctx.lower()
-        for pat in label_patterns:
-            # Find lines containing pattern
-            for m in re.finditer(pat, txt, flags=re.IGNORECASE):
-                # Search nearby for a number + unit
-                span_start = max(0, m.start() - 120)
-                span_end = min(len(txt), m.end() + 120)
-                window = txt[span_start:span_end]
-                nm = re.search(r"\$?([0-9][0-9,]*\.?[0-9]*)\s*(billion|billions|bn|million|millions|m)?", window)
-                if nm:
-                    val = Decimal(nm.group(1).replace(',', ''))
-                    unit = (nm.group(2) or 'million').lower()
-                    if unit in ('billion','billions','bn'):
-                        val = val * Decimal('1000')
-                    # ensure in millions
-                    return val
-        return None
-
     def _quantize(x: Decimal, q='0.01'):
         return x.quantize(Decimal(q), rounding=ROUND_HALF_EVEN)
+
+    def _to_millions(val: Decimal, unit: str) -> Decimal:
+        unit = (unit or '').lower()
+        if unit in ('billion','billions','bn'):
+            return val * Decimal('1000')
+        return val
+
+    def _find_line_values(ctx_lines, label_regexes, year=None):
+        """Scan lines, return first (value_in_millions, unit) where a label regex and optional year appear on same/neighbor line."""
+        for i, line in enumerate(ctx_lines):
+            lower = line.lower()
+            if year and str(year) not in lower and not (i+1 < len(ctx_lines) and str(year) in ctx_lines[i+1].lower()):
+                continue
+            for rgx in label_regexes:
+                if re.search(rgx, lower, flags=re.IGNORECASE):
+                    # search same line then next line for number with unit
+                    for look in (line, ctx_lines[i+1] if i+1 < len(ctx_lines) else ""):
+                        m = re.search(r"\$?([0-9][0-9,]*\.?[0-9]*)\s*(billion|billions|bn|million|millions|m)\b", look, flags=re.IGNORECASE)
+                        if m:
+                            val = Decimal(m.group(1).replace(',', ''))
+                            unit = m.group(2)
+                            return (_to_millions(val, unit), 'millions')
+        return (None, None)
 
     qlow = (question or '').lower()
     ctx = (context or '').strip()
 
-    # Deterministic handlers
+    # Deterministic handlers using line-based, unit-aware extraction
     if ctx:
-        # 2024 vs 2023 operating margin comparison
+        lines = [ln.strip() for ln in ctx.splitlines() if ln.strip()]
+        # Operating margin (2024) and compare vs 2023
         if 'operating profit margin' in qlow or 'operating margin' in qlow:
-            # Extract revenue and operating income in millions
-            rev = _extract_value_millions(ctx, [r"total\s+revenue", r"net\s+sales"])
-            opi = _extract_value_millions(ctx, [r"operating\s+income", r"operating\s+profit"])
+            rev, _ = _find_line_values(lines, [r"total\s+revenue", r"net\s+sales"], year=2024)
+            opi, _ = _find_line_values(lines, [r"operating\s+income", r"operating\s+profit"], year=2024)
             if rev and opi and rev != 0:
                 margin = _quantize((opi / rev) * Decimal('100'))
-                # If question asks for comparison across years, try to locate 2023 block heuristically
                 if 'compared to 2023' in qlow or 'greater in 2024' in qlow or '2023' in qlow:
-                    # naive: look for secondary numbers near 2023 mentions
-                    # fallback: assume context includes 2023 rev/inc shortly before 2024
-                    # This is a heuristic; exact table parsing would be better.
-                    rev2 = _extract_value_millions(ctx, [r"2023[\s\S]{0,80}(?:total\s+revenue|net\s+sales)", r"(?:total\s+revenue|net\s+sales)[\s\S]{0,80}2023"])
-                    opi2 = _extract_value_millions(ctx, [r"2023[\s\S]{0,80}(?:operating\s+income|operating\s+profit)", r"(?:operating\s+income|operating\s+profit)[\s\S]{0,80}2023"])
+                    rev2, _ = _find_line_values(lines, [r"total\s+revenue", r"net\s+sales"], year=2023)
+                    opi2, _ = _find_line_values(lines, [r"operating\s+income", r"operating\s+profit"], year=2023)
                     if rev2 and opi2 and rev2 != 0:
                         m2 = _quantize((opi2 / rev2) * Decimal('100'))
                         yn = 'Yes' if margin > m2 else 'No'
                         return f"{yn}. 2024 Operating Margin: {margin}% vs 2023: {m2}%"
                 return f"Operating Profit Margin (2024): {margin}%\n{{\"answer\": {str(margin)}, \"unit\": \"percent\"}}"
-
+        # EBITDA margins
         if 'ebitda margin' in qlow or ('ebitda' in qlow and 'margin' in qlow):
-            rev = _extract_value_millions(ctx, [r"total\s+revenue", r"net\s+sales"])
-            # Prefer adjusted if question says adjusted
-            if 'adjusted' in qlow:
-                ebitda = _extract_value_millions(ctx, [r"adjusted\s+ebitda"])
-            else:
-                ebitda = _extract_value_millions(ctx, [r"ebitda"])
+            rev, _ = _find_line_values(lines, [r"total\s+revenue", r"net\s+sales"], year=2024)
+            e_label = [r"adjusted\s+ebitda"] if 'adjusted' in qlow else [r"ebitda"]
+            ebitda, _ = _find_line_values(lines, e_label, year=2024)
             if rev and ebitda and rev != 0:
                 margin = _quantize((ebitda / rev) * Decimal('100'))
                 return f"EBITDA Margin (2024): {margin}%\n{{\"answer\": {str(margin)}, \"unit\": \"percent\"}}"
-
+        # Operating profit value
         if 'operating profit' in qlow and 'margin' not in qlow:
-            # Return operating income as operating profit
-            opi = _extract_value_millions(ctx, [r"operating\s+income", r"operating\s+profit"])
+            opi, _ = _find_line_values(lines, [r"operating\s+income", r"operating\s+profit"], year=2024)
             if opi is not None:
                 val = _quantize(opi)
                 return f"Operating Profit (2024): ${val} million\n{{\"answer\": {str(val)}, \"unit\": \"millions of USD\"}}"
@@ -428,6 +423,27 @@ Think step-by-step, then provide your answer:"""
         temperature=0
     )
     return response.choices[0].message.content.strip()
+
+# Local-10K context variant: build context from data/ narrative FAISS index and run ctx pipeline
+@app.function(
+    volumes={"/data": volume},
+    secrets=[modal.Secret.from_name("openai-key-1")],
+    timeout=120
+)
+def process_question_v4_local(question: str) -> str:
+    # Import inside Modal environment
+    import sys
+    sys.path.insert(0, "/root/app")
+    from langchain_community.vectorstores import FAISS
+    from langchain_openai import OpenAIEmbeddings
+    import textwrap
+
+    embeddings = OpenAIEmbeddings()
+    kb = FAISS.load_local("/data/narrative_kb_index", embeddings, allow_dangerous_deserialization=True)
+    retriever = kb.as_retriever(search_kwargs={"k": 6})
+    docs = retriever.get_relevant_documents(question)
+    ctx = "\n---\n".join([d.page_content for d in docs]) if docs else ""
+    return process_question_v4_ctx.remote(question, ctx)
 
 # Web endpoint
 @app.function(
