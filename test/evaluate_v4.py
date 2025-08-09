@@ -158,21 +158,26 @@ def evaluate_agent_v4(test_size=10):
     Args:
         test_size: Number of questions to test (default: 10)
     """
+    # Coerce test_size to int (Modal may pass strings)
+    try:
+        test_size = int(test_size)
+    except Exception:
+        test_size = 10
+    
     # Load the FinanceQA test set
     dataset = load_dataset("AfterQuery/FinanceQA", split="test")
     
     # Randomly select test_size questions
     import random
-    indices = random.sample(range(len(dataset)), min(test_size, len(dataset)))
+    total = len(dataset)
+    n = min(test_size, total)
+    indices = random.sample(range(total), n)
     
     # Import Modal to call the deployed agent
     import modal
     
     # Get the deployed function - use the newly deployed v4
     process_question = modal.Function.from_name("finance-agent-v4-new", "process_question_v4")
-    
-    # Limit test_size to dataset size
-    test_size = min(test_size, len(dataset))
     
     # Track results by category
     results = {
