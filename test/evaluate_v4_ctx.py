@@ -50,8 +50,8 @@ def run_eval(test_size: int = 10, offset: int = 0, dump_path: str = "/data/eval_
     ds = load_dataset("AfterQuery/FinanceQA", split="test")
     n = min(test_size, len(ds) - offset)
 
-    # Use local 10-K context via FAISS index under data/
-    fn = modal.Function.from_name("finance-agent-v4-new", "process_question_v4_local")
+    # Use context-first pipeline directly, bypassing retrieval; feed FinanceQA context blocks
+    fn_ctx = modal.Function.from_name("finance-agent-v4-new", "process_question_v4_ctx")
 
     total = 0
     correct = 0
@@ -65,10 +65,11 @@ def run_eval(test_size: int = 10, offset: int = 0, dump_path: str = "/data/eval_
     for i in range(offset, offset + n):
         row = ds[i]
         q = row.get("question", "")
+        ctx = row.get("context", "")
         exp = row.get("answer", "")
         t0 = time.time()
         try:
-            ans = fn.remote(q)
+            ans = fn_ctx.remote(q, ctx)
         except Exception as e:
             ans = f"ERROR: {e}"
         dt = time.time() - t0
