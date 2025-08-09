@@ -42,7 +42,7 @@ def answers_match(expected, got, tolerance=0.02):
 
 
 @app.local_entrypoint()
-def main(test_size: int = 10, offset: int = 0, dump_path: str = "/root/results/eval_v4_ctx_results.json"):
+def main(test_size: int = 10, offset: int = 0, dump_path: str = "/data/eval_v4_ctx_results.json"):
     ds = load_dataset("AfterQuery/FinanceQA", split="test")
     n = min(test_size, len(ds) - offset)
 
@@ -65,7 +65,7 @@ def main(test_size: int = 10, offset: int = 0, dump_path: str = "/root/results/e
         exp = row.get("answer", "")
         t0 = time.time()
         try:
-            ans = fn.remote(q, ctx)
+            ans = fn.remote(q)
         except Exception as e:
             ans = f"ERROR: {e}"
         dt = time.time() - t0
