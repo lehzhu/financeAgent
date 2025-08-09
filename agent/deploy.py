@@ -144,14 +144,19 @@ def process_question_v4_ctx(question: str, context: str = "") -> str:
             return val * Decimal('1000')
         return val
 
-    def _find_line_values(ctx_lines, label_regexes, year=None):
+    def _find_line_values(ctx_lines, label_regexes, year=None, lookahead_lines=3):
         for i, line in enumerate(ctx_lines):
             lower = line.lower()
-            if year and str(year) not in lower and not (i+1 < len(ctx_lines) and str(year) in ctx_lines[i+1].lower()):
+            year_ok = True
+            if year:
+                year_ok = (str(year) in lower) or any(str(year) in (ctx_lines[j].lower() if j < len(ctx_lines) else "") for j in range(i+1, i+1+lookahead_lines))
+            if not year_ok:
                 continue
             for rgx in label_regexes:
                 if re.search(rgx, lower, flags=re.IGNORECASE):
-                    for look in (line, ctx_lines[i+1] if i+1 < len(ctx_lines) else ""):
+                    # search same line and up to N following lines
+                    for j in range(i, min(i+1+lookahead_lines, len(ctx_lines))):
+                        look = ctx_lines[j]
                         m = re.search(r"\$?([0-9][0-9,]*\.?[0-9]*)\s*(billion|billions|bn|million|millions|m)\b", look, flags=re.IGNORECASE)
                         if m:
                             val = Decimal(m.group(1).replace(',', ''))
@@ -179,8 +184,8 @@ def process_question_v4_ctx(question: str, context: str = "") -> str:
                 return f"Operating Profit Margin (2024): {margin}%\n{{\"answer\": {str(margin)}, \"unit\": \"percent\"}}"
         if 'ebitda margin' in qlow or ('ebitda' in qlow and 'margin' in qlow):
             rev, _ = _find_line_values(lines, [r"total\s+revenue", r"net\s+sales"], year=2024)
-            e_label = [r"adjusted\s+ebitda"] if 'adjusted' in qlow else [r"ebitda"]
-            ebitda, _ = _find_line_values(lines, e_label, year=2024)
+            e_labels = [r"adjusted\s+ebitda", r"ebitda"] if 'adjusted' in qlow else [r"ebitda", r"ebit\s*\+\s*depreciation", r"operating\s+income\s*\+\s*depreciation"]
+            ebitda, _ = _find_line_values(lines, e_labels, year=2024)
             if rev and ebitda and rev != 0:
                 margin = _quantize((ebitda / rev) * Decimal('100'))
                 return f"EBITDA Margin (2024): {margin}%\n{{\"answer\": {str(margin)}, \"unit\": \"percent\"}}"
@@ -210,7 +215,7 @@ def process_question_v4_local(question: str) -> str:
 
     embeddings = OpenAIEmbeddings()
     kb = FAISS.load_local("/data/narrative_kb_index", embeddings, allow_dangerous_deserialization=True)
-    retriever = kb.as_retriever(search_kwargs={"k": 6})
+    retriever = kb.as_retriever(search_kwargs={"k": 10})
     docs = retriever.get_relevant_documents(question)
     ctx = "\n---\n".join([d.page_content for d in docs]) if docs else ""
     return process_question_v4_ctx.remote(question, ctx)
