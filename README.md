@@ -1,3 +1,32 @@
+# Finance Agent (v4 simplified)
+
+This repo contains a simplified v4 finance agent with a single deploy entrypoint and local 10-K context.
+
+What remains
+- agent/deploy.py: Modal app with functions:
+  - process_question_v4: routed tool flow
+  - process_question_v4_ctx: context-first with deterministic margin math
+  - process_question_v4_local: builds context from data/ FAISS index and uses ctx path
+- agent/utils/calculator.py: Safe AST-based calculator
+- data/: 10-K sources and any structured files
+- dump/: evaluation dumps
+- setup_narrative_index.py: Builds FAISS index from data/
+- test/evaluate_v4_ctx.py: Context-first evaluation calling process_question_v4_local
+
+Quick start
+1) Build the narrative index from data/ (full 10-K):
+   modal run setup_narrative_index.py
+2) Deploy the agent:
+   modal deploy agent/deploy.py
+3) Run a 20-question evaluation (uses local 10-K context, not HF context):
+   modal run test/evaluate_v4_ctx.py --test-size 20 --offset 0
+   # Dump will be written to /root/results/eval_v4_ctx_results.json in Modal.
+
+Notes
+- The local 10-K context ensures rich, high-recall retrieval without sending HF context blocks.
+- Deterministic, line-based, unit-aware extraction reduces margin mistakes.
+- You can still call process_question_v4_ctx with any provided context if needed.
+
 # FinanceAgent
 
 Purpose

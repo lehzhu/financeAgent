@@ -42,11 +42,12 @@ def answers_match(expected, got, tolerance=0.02):
 
 
 @app.local_entrypoint()
-def main(test_size: int = 10, offset: int = 0, dump_path: str = "dump/eval_v4_ctx_results.json"):
+def main(test_size: int = 10, offset: int = 0, dump_path: str = "/root/results/eval_v4_ctx_results.json"):
     ds = load_dataset("AfterQuery/FinanceQA", split="test")
     n = min(test_size, len(ds) - offset)
 
-    fn = modal.Function.from_name("finance-agent-v4-new", "process_question_v4_ctx")
+    # Use local 10-K context via FAISS index under data/
+    fn = modal.Function.from_name("finance-agent-v4-new", "process_question_v4_local")
 
     total = 0
     correct = 0
@@ -88,7 +89,7 @@ def main(test_size: int = 10, offset: int = 0, dump_path: str = "dump/eval_v4_ct
 
     # Write dump
     import os
-    os.makedirs("dump", exist_ok=True)
+    os.makedirs(os.path.dirname(dump_path) or ".", exist_ok=True)
     with open(dump_path, "w") as f:
         json.dump({"total": total, "correct": correct, "accuracy": correct/total if total else 0.0, "items": items}, f, indent=2)
     print(f"Wrote results to {dump_path}")
