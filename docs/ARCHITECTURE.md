@@ -11,7 +11,7 @@ Answer questions about Costco's 10-K using best-available open or API-based lang
 
 **Environment**:  
 - Production: Modal cloud (API key gated)
-- Local: Ollama or OpenWebUI with retrieval augmention (Ollama turbo planned)
+- Local: N/A (not in V4) 
 
 ---
 
