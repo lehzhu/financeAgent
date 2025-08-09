@@ -97,5 +97,3 @@ A GPT-4o prompt classifies every question into one of three routes:
 - Issues/feedback: [See repository](../README.md)  
 
 ---
-
-Remove this file and tighten further as features mature; this is meant as a clear, no-nonsense reference for developers and product managers alike.
