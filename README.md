@@ -1,6 +1,6 @@
 # FinanceQA Agent
 
-A pragmatic baseline for answering finance questions using three simple tools (SQLite lookups, FAISS narrative search, and a safe calculator). Current measured accuracy on FinanceQA (v4) ranges from ~30–50% depending on sample size and question mix. The calculation path is notably weak right now. Branches v4.5 and v5 were unsuccessful experiments and are not representative of a working system.
+A pragmatic baseline for answering finance questions using three simple tools (SQLite lookups, FAISS narrative search, and a safe calculator). Current measured accuracy on FinanceQA (v4) ranges from ~30–50% depending on sample size and question mix. Branches v4.5 and v5 were experiments and are not as mature.
 
 ## Quick Demo
 
@@ -78,9 +78,7 @@ Run evaluation:
 
 ## Documentation
 
-- Overview and version history: docs/README.md
-- Architecture (v4/v4.5): docs/ARCHITECTURE.md
-- Product/plan context: docs/PRD.md
+- Overview and version history: docs/ARCHITECTURE.md
 
 ## Performance
 
@@ -151,9 +149,6 @@ Concrete, incremental steps you can implement here to materially improve accurac
    - Keep a small, stratified smoke set (calc/structured/narrative) and run in CI
    - Store evaluation dumps with per-type breakdown and diff against last run
 
-Stretch (if needed):
-- Optional reranking for narrative (e.g., ZeroEntropy or better embeddings) once the calculator is solid
-- Simple learned router (logreg/XGBoost) trained on labeled question types to reduce misroutes further
 
 ---
 
