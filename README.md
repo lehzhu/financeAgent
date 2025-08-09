@@ -2,7 +2,7 @@
 
 A pragmatic baseline for answering finance questions using three simple tools (SQLite lookups, FAISS narrative search, and a safe calculator). Current measured accuracy on FinanceQA (v4) ranges from ~30–50% depending on sample size and question mix. Branches v4.5 and v5 were experiments and are not as mature.
 
-## Quick Demo
+## Example
 
 ```bash
 Q: "What was Costco's revenue in 2024?"
