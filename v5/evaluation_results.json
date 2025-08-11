@@ -1,0 +1,254 @@
+[
+  {
+    "id": "0",
+    "final_answer": {
+      "type": "number",
+      "value": "36789"
+    },
+    "trace": [
+      {
+        "op": "STRUCTURED_LOOKUP",
+        "query": "What is Gross Profit in the year ending 2024?",
+        "result": "Gross Profit (2024): $36,789 million"
+      }
+    ],
+    "assumptions": [],
+    "sources": [
+      "SQLite: costco_financial_data.db"
+    ]
+  },
+  {
+    "id": "1",
+    "final_answer": {
+      "type": "number",
+      "value": "0.00"
+    },
+    "trace": [
+      {
+        "op": "ADD",
+        "args": [
+          "OPERATING_INCOME",
+          "DEPRECIATION"
+        ],
+        "result": "0"
+      },
+      {
+        "op": "ADD",
+        "args": [
+          "<prev>",
+          "AMORTIZATION"
+        ],
+        "result": "0"
+      },
+      {
+        "op": "ASSUMPTIONS",
+        "args": [],
+        "result": {}
+      }
+    ],
+    "assumptions": [],
+    "sources": []
+  },
+  {
+    "id": "2",
+    "final_answer": {
+      "type": "number",
+      "value": "0.00"
+    },
+    "trace": [
+      {
+        "op": "ADD",
+        "args": [
+          "OPERATING_INCOME",
+          "DEPRECIATION"
+        ],
+        "result": "0"
+      },
+      {
+        "op": "ADD",
+        "args": [
+          "<prev>",
+          "AMORTIZATION"
+        ],
+        "result": "0"
+      },
+      {
+        "op": "ASSUMPTIONS",
+        "args": [],
+        "result": {}
+      }
+    ],
+    "assumptions": [],
+    "sources": []
+  },
+  {
+    "id": "3",
+    "final_answer": {
+      "type": "number",
+      "value": "0.00"
+    },
+    "trace": [
+      {
+        "op": "COMPUTE",
+        "args": [
+          "OPERATING_INCOME"
+        ],
+        "result": "0"
+      },
+      {
+        "op": "ASSUMPTIONS",
+        "args": [],
+        "result": {}
+      }
+    ],
+    "assumptions": [],
+    "sources": []
+  },
+  {
+    "id": "4",
+    "final_answer": {
+      "type": "number",
+      "value": "0.00"
+    },
+    "trace": [
+      {
+        "op": "COMPUTE",
+        "args": [
+          "OPERATING_INCOME"
+        ],
+        "result": "0"
+      },
+      {
+        "op": "ASSUMPTIONS",
+        "args": [],
+        "result": {}
+      }
+    ],
+    "assumptions": [],
+    "sources": []
+  },
+  {
+    "id": "5",
+    "final_answer": {
+      "type": "number",
+      "value": "0.00"
+    },
+    "trace": [
+      {
+        "op": "ADD",
+        "args": [
+          "OPERATING_INCOME",
+          "DEPRECIATION"
+        ],
+        "result": "0"
+      },
+      {
+        "op": "ADD",
+        "args": [
+          "<prev>",
+          "AMORTIZATION"
+        ],
+        "result": "0"
+      },
+      {
+        "op": "ASSUMPTIONS",
+        "args": [],
+        "result": {}
+      }
+    ],
+    "assumptions": [],
+    "sources": []
+  },
+  {
+    "id": "6",
+    "final_answer": {
+      "type": "number",
+      "value": "0.00"
+    },
+    "trace": [
+      {
+        "op": "ADD",
+        "args": [
+          "OPERATING_INCOME",
+          "DEPRECIATION"
+        ],
+        "result": "0"
+      },
+      {
+        "op": "ADD",
+        "args": [
+          "<prev>",
+          "AMORTIZATION"
+        ],
+        "result": "0"
+      },
+      {
+        "op": "ASSUMPTIONS",
+        "args": [],
+        "result": {}
+      }
+    ],
+    "assumptions": [],
+    "sources": []
+  },
+  {
+    "id": "7",
+    "final_answer": {
+      "type": "percent",
+      "value": "0.00"
+    },
+    "trace": [
+      {
+        "op": "COMPUTE",
+        "args": [
+          "OPERATING_INCOME",
+          "REVENUE"
+        ],
+        "result": "0"
+      },
+      {
+        "op": "ASSUMPTIONS",
+        "args": [],
+        "result": {}
+      }
+    ],
+    "assumptions": [],
+    "sources": []
+  },
+  {
+    "id": "8",
+    "final_answer": {
+      "type": "text",
+      "value": "Mock data: Financial metric would be retrieved from database"
+    },
+    "trace": [
+      {
+        "op": "STRUCTURED_LOOKUP",
+        "query": "Is Operating Profit Margin greater in 2024 compared to 2023?",
+        "result": "Mock data: Financial metric would be retrieved from database"
+      }
+    ],
+    "assumptions": [],
+    "sources": [
+      "SQLite: costco_financial_data.db"
+    ]
+  },
+  {
+    "id": "9",
+    "final_answer": {
+      "type": "text",
+      "value": "Mock data: Financial metric would be retrieved from database"
+    },
+    "trace": [
+      {
+        "op": "STRUCTURED_LOOKUP",
+        "query": "Calculate Operating Profit for 2024.",
+        "result": "Mock data: Financial metric would be retrieved from database"
+      }
+    ],
+    "assumptions": [],
+    "sources": [
+      "SQLite: costco_financial_data.db"
+    ]
+  }
+]

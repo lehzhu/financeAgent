@@ -1,0 +1,174 @@
+[
+  {
+    "test_id": "struct1",
+    "passed": true,
+    "result": {
+      "id": "struct1",
+      "final_answer": {
+        "type": "number",
+        "value": "254123"
+      },
+      "trace": [
+        {
+          "op": "STRUCTURED_LOOKUP",
+          "query": "What was Costco's revenue in 2024?",
+          "result": "Total Revenue (2024): $254,123 million"
+        }
+      ],
+      "assumptions": [],
+      "sources": [
+        "SQLite: costco_financial_data.db"
+      ]
+    }
+  },
+  {
+    "test_id": "struct2",
+    "passed": true,
+    "result": {
+      "id": "struct2",
+      "final_answer": {
+        "type": "number",
+        "value": "7367"
+      },
+      "trace": [
+        {
+          "op": "STRUCTURED_LOOKUP",
+          "query": "Show me net income for 2024",
+          "result": "Net Income (2024): $7,367 million"
+        }
+      ],
+      "assumptions": [],
+      "sources": [
+        "SQLite: costco_financial_data.db"
+      ]
+    }
+  },
+  {
+    "test_id": "narr1",
+    "passed": true,
+    "result": {
+      "id": "narr1",
+      "final_answer": {
+        "type": "text",
+        "value": "1. Economic conditions and consumer spending patterns significantly affect our business. 2. We face intense competition in the retail industry from both traditional retailers and e-commerce companies. 3. Supply chain disruptions could materially impact our ability to stock merchandise."
+      },
+      "trace": [
+        {
+          "op": "NARRATIVE_SEARCH",
+          "query": "What are the main risk factors?",
+          "docs_retrieved": 5
+        }
+      ],
+      "assumptions": [],
+      "sources": [
+        "FAISS: Costco 10-K narrative sections"
+      ]
+    }
+  },
+  {
+    "test_id": "narr2",
+    "passed": true,
+    "result": {
+      "id": "narr2",
+      "final_answer": {
+        "type": "text",
+        "value": "Our business model is focused on achieving high sales volumes and rapid inventory turnover by offering a limited selection of nationally branded and private-label products in a wide range of categories at low prices. We operate membership warehouses based on the concept that offering our members low prices on a limited"
+      },
+      "trace": [
+        {
+          "op": "NARRATIVE_SEARCH",
+          "query": "Describe the business strategy",
+          "docs_retrieved": 5
+        }
+      ],
+      "assumptions": [],
+      "sources": [
+        "FAISS: Costco 10-K narrative sections"
+      ]
+    }
+  },
+  {
+    "test_id": "calc1",
+    "passed": true,
+    "result": {
+      "id": "calc1",
+      "final_answer": {
+        "type": "percent",
+        "value": "14.48"
+      },
+      "trace": [
+        {
+          "op": "COMPUTE",
+          "args": [
+            "GROSS_PROFIT",
+            "REVENUE"
+          ],
+          "result": "14.476847825659228011632162378061017696155011549525"
+        },
+        {
+          "op": "ASSUMPTIONS",
+          "args": [],
+          "result": {}
+        }
+      ],
+      "assumptions": [],
+      "sources": []
+    }
+  },
+  {
+    "test_id": "calc2",
+    "passed": true,
+    "result": {
+      "id": "calc2",
+      "final_answer": {
+        "type": "percent",
+        "value": "4.88"
+      },
+      "trace": [
+        {
+          "op": "COMPUTE",
+          "args": [
+            "VALUE_CURRENT",
+            "VALUE_PRIOR"
+          ],
+          "result": "4.8838169136159148128276032853192455322134632052499"
+        },
+        {
+          "op": "ASSUMPTIONS",
+          "args": [],
+          "result": {}
+        }
+      ],
+      "assumptions": [],
+      "sources": []
+    }
+  },
+  {
+    "test_id": "calc3",
+    "passed": true,
+    "result": {
+      "id": "calc3",
+      "final_answer": {
+        "type": "percent",
+        "value": "15.00"
+      },
+      "trace": [
+        {
+          "op": "COMPUTE",
+          "args": [
+            "PART",
+            "WHOLE"
+          ],
+          "result": "15.00"
+        },
+        {
+          "op": "ASSUMPTIONS",
+          "args": [],
+          "result": {}
+        }
+      ],
+      "assumptions": [],
+      "sources": []
+    }
+  }
+]

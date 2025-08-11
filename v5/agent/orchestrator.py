@@ -95,25 +95,37 @@ class Orchestrator:
 
         # Assemble inputs from context or table
         inputs = {}
+        
+        # Try to extract values from the question for simple calculations
+        import re
+        if alias["metric_id"] == "PERCENTAGE_OF":
+            # Extract numbers from question like "15% of 1000000"
+            numbers = re.findall(r'\d+', q)
+            if len(numbers) >= 2:
+                # First number is the percentage, second is the whole
+                inputs["PART"] = str(float(numbers[0]) * float(numbers[1]) / 100)
+                inputs["WHOLE"] = numbers[1]
+        
         for req in alias.get("requires", []):
-            # naive extraction: look in context first, else 0
-            val = None
-            if "inputs" in context and req in context["inputs"]:
-                val = context["inputs"][req]
-            if val is None:
-                val = "0"
-            # normalize to USD if units provided
-            from_units = context.get("units", {}).get(req)
-            if from_units:
-                norm = normalize_units({
-                    "value": str(val),
-                    "from_units": from_units,
-                    "to_units": "USD",
-                    "percent": False
-                })
-                inputs[req] = norm["value"]
-            else:
-                inputs[req] = str(val)
+            if req not in inputs:  # Only fill if not already extracted
+                # naive extraction: look in context first, else 0
+                val = None
+                if "inputs" in context and req in context["inputs"]:
+                    val = context["inputs"][req]
+                if val is None:
+                    val = "0"
+                # normalize to USD if units provided
+                from_units = context.get("units", {}).get(req)
+                if from_units:
+                    norm = normalize_units({
+                        "value": str(val),
+                        "from_units": from_units,
+                        "to_units": "USD",
+                        "percent": False
+                    })
+                    inputs[req] = norm["value"]
+                else:
+                    inputs[req] = str(val)
 
         comp = compute_formula({
             "metric_id": alias["metric_id"],
@@ -142,10 +154,21 @@ class Orchestrator:
         })
 
         final_value = adjusted.get(alias["metric_id"], comp["value"])
+        
+        # Determine if this is a percentage result
+        metric_id = alias["metric_id"]
+        is_percent = any([
+            "MARGIN" in metric_id,
+            "GROWTH" in metric_id,
+            "PERCENTAGE" in metric_id,
+            "RATIO" in metric_id and metric_id not in ["CURRENT_RATIO", "QUICK_RATIO", "DEBT_RATIO"],
+            metric_id in ["ROE", "ROA", "ROIC", "FCF_CONVERSION", "CAGR"]
+        ])
+        
         return {
             "id": item.get("id"),
             "final_answer": {
-                "type": "number" if "MARGIN" not in alias["metric_id"] else "percent",
+                "type": "percent" if is_percent else "number",
                 "value": str(final_value)
             },
             "trace": comp.get("trace", []) + [
@@ -156,24 +179,116 @@ class Orchestrator:
         }
 
     def _handle_structured(self, q: str, item: Dict[str, Any]) -> Dict[str, Any]:
-        # Placeholder structured lookup path
-        return {
-            "id": item.get("id"),
-            "final_answer": {"type": "text", "value": "N/A"},
-            "trace": ["structured path not yet implemented"],
-            "assumptions": [],
-            "sources": []
-        }
+        """Handle structured data lookup from SQLite database."""
+        from tools.structured_lookup import StructuredDataLookup
+        
+        try:
+            lookup = StructuredDataLookup()
+            result = lookup.query(q)
+            
+            # Parse the result to extract the value and units
+            value = None
+            unit = "USD"
+            
+            if result and result != "No data found for the specified query.":
+                # Extract value and unit from formatted result
+                # Example: "Total Revenue (2024): $254,123 million"
+                import re
+                # Look for pattern like "(year): $value unit" or "(year): value unit"
+                match = re.search(r'\(\d{4}\):\s*\$?([\d,\.]+)\s*(million|billion|thousand|percent|%)?', result)
+                if match:
+                    value = match.group(1).replace(',', '')
+                    unit_text = match.group(2) if match.group(2) else "USD"
+                    if unit_text in ['million', 'millions']:
+                        unit = "millions of USD"
+                    elif unit_text in ['billion', 'billions']:
+                        unit = "billions of USD"
+                    elif unit_text in ['percent', '%']:
+                        unit = "percent"
+            
+            if value:
+                return {
+                    "id": item.get("id"),
+                    "final_answer": {
+                        "type": "number" if unit != "percent" else "percent",
+                        "value": str(value),
+                        "unit": unit
+                    },
+                    "trace": [{"op": "STRUCTURED_LOOKUP", "query": q, "result": result}],
+                    "assumptions": [],
+                    "sources": ["SQLite: costco_financial_data.db"]
+                }
+            else:
+                return {
+                    "id": item.get("id"),
+                    "final_answer": {"type": "text", "value": result or "No data found"},
+                    "trace": [{"op": "STRUCTURED_LOOKUP", "query": q, "result": result}],
+                    "assumptions": [],
+                    "sources": ["SQLite: costco_financial_data.db"]
+                }
+                
+        except Exception as e:
+            logger.exception("Structured lookup failure")
+            return {
+                "id": item.get("id"),
+                "final_answer": {"type": "text", "value": f"Error: {str(e)}"},
+                "trace": [{"op": "STRUCTURED_LOOKUP_ERROR", "error": str(e)}],
+                "assumptions": [],
+                "sources": []
+            }
 
     def _handle_narrative(self, q: str, item: Dict[str, Any]) -> Dict[str, Any]:
-        # Minimal baseline: echo with no hallucinations.
-        return {
-            "id": item.get("id"),
-            "final_answer": {"type": "text", "value": "Cannot compute without structured context."},
-            "trace": ["narrative fallback"],
-            "assumptions": [],
-            "sources": []
-        }
+        """Handle narrative/conceptual questions using FAISS vector search."""
+        from tools.narrative_search import NarrativeSearch
+        
+        try:
+            search = NarrativeSearch()
+            result = search.search(q)
+            
+            if result and "No relevant" not in result:
+                # Summarize the narrative content
+                summary = self._summarize_narrative(q, result)
+                return {
+                    "id": item.get("id"),
+                    "final_answer": {"type": "text", "value": summary},
+                    "trace": [{"op": "NARRATIVE_SEARCH", "query": q, "docs_retrieved": 5}],
+                    "assumptions": [],
+                    "sources": ["FAISS: Costco 10-K narrative sections"]
+                }
+            else:
+                return {
+                    "id": item.get("id"),
+                    "final_answer": {"type": "text", "value": "No relevant information found in narrative sections."},
+                    "trace": [{"op": "NARRATIVE_SEARCH", "query": q, "result": "no_docs"}],
+                    "assumptions": [],
+                    "sources": []
+                }
+                
+        except Exception as e:
+            logger.exception("Narrative search failure")
+            return {
+                "id": item.get("id"),
+                "final_answer": {"type": "text", "value": f"Error: {str(e)}"},
+                "trace": [{"op": "NARRATIVE_SEARCH_ERROR", "error": str(e)}],
+                "assumptions": [],
+                "sources": []
+            }
+    
+    def _summarize_narrative(self, question: str, narrative_content: str) -> str:
+        """Summarize narrative content to answer the question."""
+        # For now, return a simple extraction
+        # In production, this would use an LLM to synthesize
+        lines = narrative_content.split('\n')
+        relevant_lines = []
+        for line in lines:
+            if len(line.strip()) > 50:  # Skip short lines
+                relevant_lines.append(line.strip())
+                if len(relevant_lines) >= 3:  # Return first 3 relevant sentences
+                    break
+        
+        if relevant_lines:
+            return " ".join(relevant_lines)
+        return "Information found but unable to extract relevant summary."
 
     def _call_llm(self, messages: List[Dict[str, str]], tools: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """Wire up to your LLM. Must return function-call directives or JSON content."""
